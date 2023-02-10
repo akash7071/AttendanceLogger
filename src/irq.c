@@ -9,18 +9,17 @@
 #include <src/timers.h>
 #include "em_letimer.h"
 #include "gpio.h"
+#include "i2c.h"
+#include "log.h"
+#include "scheduler.h"
 
 uint32_t flags =0;
 
 void LETIMER0_IRQHandler (void) {
-  flags = LETIMER_IntGetEnabled(LETIMER0);         //Get interrupt flags detail
-  if(flags &LETIMER_IF_COMP0){                      //Checking if COMP0 caused the int
-      LETIMER_IntClear(LETIMER0,LETIMER_IF_COMP0);  //Clearing COMP0 interrupt
-      gpioLed0SetOff();                             //Turn LED0 OFF
-  }
-  if(flags &LETIMER_IF_COMP1){                      //Checking if COMP1 caused the int
-      LETIMER_IntClear(LETIMER0,LETIMER_IF_COMP1);  //Clearing COMP1 interrupt
-      gpioLed0SetOn();                              //Turn LED1 OFF
+  flags = LETIMER_IntGetEnabled(LETIMER0);        //Get interrupt flags detail
+  if(flags &LETIMER_IF_UF){                       //Checking if UF caused the int
+      LETIMER_IntClear(LETIMER0,LETIMER_IF_UF);   //Clearing UF interrupt
+      schedulerSetReadTemperature();              //Calling the particular scheduler
   }
 }
 

@@ -36,7 +36,6 @@
  * Student:  Harsh Beriwal (harsh.beriwal@colorado.edu)
  *
  *
- *
  ******************************************************************************/
 #include <src/oscillators.h>
 #include <src/timers.h>
@@ -50,7 +49,8 @@
 #include "src/ble_device_type.h"
 #include "src/gpio.h"
 #include "src/lcd.h"
-
+#include "src/i2c.h"
+#include "src/scheduler.h"
 
 // Students: Here is an example of how to correctly include logging functions in
 //           each .c file.
@@ -154,13 +154,12 @@ SL_WEAK void app_init(void)
   // Put your application 1-time initialization code here.
   // This is called once during start-up.
   // Don't call any Bluetooth API functions until after the boot event.
-
 #if (LOWEST_ENERGY_MODE == EM1)
    sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM1);
 #elif (LOWEST_ENERGY_MODE == EM2)
    sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM2);
 #endif
-   gpioInit();                           //Initializing GPIO LED0
+   gpioInit();                            //Initializing GPIO LED0
    init_Clock();                          //Initializing Clock LXFO and ULFCRO
    LETIMER0_init();                       //Initializing Timer with COMP0 and COMP1
    NVIC_ClearPendingIRQ(LETIMER0_IRQn);   //Enabling Interrupt in NVIC
@@ -177,6 +176,7 @@ SL_WEAK void app_init(void)
  * comment out this function. Wait loops are a bad idea in general.
  * We'll discuss how to do this a better way in the next assignment.
  *****************************************************************************/
+/*
 static void delayApprox(int delay)
 {
   volatile int i;
@@ -186,6 +186,7 @@ static void delayApprox(int delay)
   }
 
 } // delayApprox()
+*/
 
 
 
@@ -196,7 +197,12 @@ static void delayApprox(int delay)
  *****************************************************************************/
 SL_WEAK void app_process_action(void)
 {
-    //Everything is getting handled in the Interrupt
+  uint32_t evt;
+  evt = getNextEvent();
+  switch (evt) {
+    case event_Timer_UF: read_temp_from_si7021();
+                         break;
+  }
 } // app_process_action()
 
 

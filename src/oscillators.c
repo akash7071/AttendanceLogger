@@ -24,5 +24,8 @@ void init_Clock() {
   CMU_ClockEnable(cmuClock_LFA, true);
   CMU_ClockDivSet(cmuClock_LETIMER0,cmuClkDiv_4);       //32768/4 = 8192 Hz
 #endif
+  CMU_ClockEnable(cmuClock_HFPER, true);
+  CMU_ClockEnable(cmuClock_I2C0, true);
   CMU_ClockEnable(cmuClock_LETIMER0, true);             //Enabling LETIMER0 clock
+
 }

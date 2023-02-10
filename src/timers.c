@@ -21,7 +21,7 @@
 #define COMP1_CNT     ((LETIMER_ON_TIME_MS*ACTUAL_CLK_FREQ)/1000)
 #define COMP0_CNT     ((LETIMER_PERIOD_MS*ACTUAL_CLK_FREQ)/1000)
 
-uint32_t temp =0 ;
+uint32_t temp =0, current_tick =0, wait_ticks =0;
 
 void LETIMER0_init() {
     const LETIMER_Init_TypeDef timer = {
@@ -34,15 +34,28 @@ void LETIMER0_init() {
         letimerUFOANone,
         letimerUFOANone,
         letimerRepeatFree,
-        0,
+        COMP0_CNT,
     };
     LETIMER_Init(LETIMER0, &timer);
     LETIMER_CompareSet(LETIMER0, 0, COMP0_CNT);  // COMP0
     LETIMER_CompareSet(LETIMER0, 1, COMP1_CNT);  // COMP1
     LETIMER_IntClear (LETIMER0, 0xFFFFFFFF);     // Clear all IRQ flags in the LETIMER0 IF status register
-    temp = LETIMER_IEN_COMP0 | LETIMER_IEN_COMP1;// punch them all down
-    LETIMER_IntEnable (LETIMER0, temp);          //  Enabling Interrupts
-    LETIMER_Enable(LETIMER0, true);              //Turning on LETIMER0
+    temp = LETIMER_IEN_UF;// punch them all down
+    LETIMER_IntEnable (LETIMER0, temp);          //  Enabling UF Interrupt
+    LETIMER_Enable(LETIMER0, true);              //  Turning on LETIMER0
+}
 
+void timerWaitUs(int wait) {
+   current_tick  = LETIMER_CounterGet(LETIMER0);       //Get the current tick
+   wait_ticks = (wait * ACTUAL_CLK_FREQ)/1000000;      //convert wait in us to ticks
+   if(current_tick < wait_ticks) {
+       wait_ticks = (current_tick - wait_ticks) + COMP0_CNT;  //timer overflow condition
+   }
+   else {
+       wait_ticks = current_tick - wait_ticks;
+   }
+   while(current_tick > wait_ticks) {
+       current_tick  = LETIMER_CounterGet(LETIMER0);          //Wait until the wait time has passed
+   }
 }
 
