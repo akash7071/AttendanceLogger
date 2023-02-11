@@ -16,4 +16,5 @@ void I2CSPM_Sensor_Init();
 void I2CSPM_Get_Temperature();
 uint16_t I2CSPM_read_temperature();
 void read_temp_from_si7021();
+
 #endif /* SRC_I2C_H_ */

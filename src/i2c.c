@@ -49,7 +49,7 @@ void I2CSPM_Get_Temperature() {
   transferSequence.buf[0].len = sizeof(cmd_data);
   transferStatus = I2CSPM_Transfer (I2C0, &transferSequence);
   if (transferStatus != i2cTransferDone) {
-      LOG_ERROR("I2CSPM_Transfer: I2C bus write failed");
+      LOG_ERROR("I2CSPM_Transfer: I2C bus write failed\n\r");
   }
 }
 
@@ -62,7 +62,7 @@ uint16_t I2CSPM_read_temperature() {
   transferSequence.buf[0].len = sizeof(read_data);
   transferStatus = I2CSPM_Transfer(I2C0, &transferSequence);
   if (transferStatus != i2cTransferDone) {
-      LOG_ERROR("I2CSPM_Transfer: I2C bus Read failed");
+      LOG_ERROR("I2CSPM_Transfer: I2C bus Read failed\n\r");
   }
   else{
     temperature = ((read_data<<8) | ((read_data >>8) &0xFC));          //Swapping the MS nibble with LS Nibble for 0xFFFC;
@@ -79,6 +79,6 @@ void read_temp_from_si7021() {
   timerWaitUs(I2C_TRANSFER_WAIT);                       //Wait for the i2c transfer to complete
   curr_temp = I2CSPM_read_temperature();                //Reads temperature and converts it into degree celsius
   gpioSi7021Disable();                                  //Disable the SENSOR_ENABLE
-  LOG_INFO("Temperature is %d\n\r degree C", curr_temp);
+  LOG_INFO("Temperature is %d degree C\n\r", curr_temp);
 }
 

@@ -12,7 +12,8 @@
 #include <src/timers.h>
 #include "em_letimer.h"
 #include "app.h"
-
+#define INCLUDE_LOG_DEBUG   1
+#include "log.h"
 #if (LOWEST_ENERGY_MODE == EM3)
   #define ACTUAL_CLK_FREQ   1000
 #else
@@ -46,8 +47,13 @@ void LETIMER0_init() {
 }
 
 void timerWaitUs(int wait) {
-   current_tick  = LETIMER_CounterGet(LETIMER0);       //Get the current tick
-   wait_ticks = (wait * ACTUAL_CLK_FREQ)/1000000;      //convert wait in us to ticks
+   //***********************RANGE_CHECK IMPLEMTATION*********************************
+   if((wait < 1000) || (wait > 65535000)) {
+       LOG_ERROR("Timer Wait function Range is 1ms to 65535ms at 1000Hz");
+       return;
+   }
+   current_tick  = LETIMER_CounterGet(LETIMER0);              //Get the current tick
+   wait_ticks = (wait * ACTUAL_CLK_FREQ)/1000000;             //convert wait in us to ticks
    if(current_tick < wait_ticks) {
        wait_ticks = (current_tick - wait_ticks) + COMP0_CNT;  //timer overflow condition
    }
