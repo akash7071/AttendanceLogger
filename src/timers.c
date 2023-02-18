@@ -19,11 +19,11 @@
 #else
   #define ACTUAL_CLK_FREQ   8192
 #endif
-#define COMP1_CNT     ((LETIMER_ON_TIME_MS*ACTUAL_CLK_FREQ)/1000)
+//#define COMP1_CNT     ((LETIMER_ON_TIME_MS*ACTUAL_CLK_FREQ)/1000)
 #define COMP0_CNT     ((LETIMER_PERIOD_MS*ACTUAL_CLK_FREQ)/1000)
 
 uint32_t temp =0, current_tick =0, wait_ticks =0;
-
+uint32_t COMP1_CNT =  ((LETIMER_ON_TIME_MS*ACTUAL_CLK_FREQ)/1000);
 void LETIMER0_init() {
     const LETIMER_Init_TypeDef timer = {
         false,
@@ -39,14 +39,12 @@ void LETIMER0_init() {
     };
     LETIMER_Init(LETIMER0, &timer);
     LETIMER_CompareSet(LETIMER0, 0, COMP0_CNT);  // COMP0
-    LETIMER_CompareSet(LETIMER0, 1, COMP1_CNT);  // COMP1
     LETIMER_IntClear (LETIMER0, 0xFFFFFFFF);     // Clear all IRQ flags in the LETIMER0 IF status register
-    temp = LETIMER_IEN_UF;// punch them all down
-    LETIMER_IntEnable (LETIMER0, temp);          //  Enabling UF Interrupt
+    LETIMER_IntEnable (LETIMER0, LETIMER_IEN_UF);//  Enabling UF Interrupt
     LETIMER_Enable(LETIMER0, true);              //  Turning on LETIMER0
 }
 
-void timerWaitUs(int wait) {
+void timerWaitUs_irq(int wait) {
    //***********************RANGE_CHECK IMPLEMTATION*********************************
    if((wait < 1000) || (wait > 65535000)) {
        LOG_ERROR("Timer Wait function Range is 1ms to 65535ms at 1000Hz");
@@ -60,8 +58,9 @@ void timerWaitUs(int wait) {
    else {
        wait_ticks = current_tick - wait_ticks;
    }
-   while(current_tick > wait_ticks) {
-       current_tick  = LETIMER_CounterGet(LETIMER0);          //Wait until the wait time has passed
-   }
+   COMP1_CNT = wait_ticks;
+   LETIMER_CompareSet(LETIMER0, 1, COMP1_CNT);                //Sets Compare1 Register
+   LETIMER_IntClear(LETIMER0, LETIMER_IFC_COMP1);             //Clear if any flag is set before
+   LETIMER0 -> IEN |= LETIMER_IEN_COMP1;                      //Enables Interrupt for COMP1
 }
 

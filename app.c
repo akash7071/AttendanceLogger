@@ -199,10 +199,7 @@ SL_WEAK void app_process_action(void)
 {
   uint32_t evt;
   evt = getNextEvent();
-  switch (evt) {
-    case event_Timer_UF: read_temp_from_si7021();
-                         break;
-  }
+  Temperature_state_machine(evt);              //Calls the State machine for Temp
 } // app_process_action()
 
 

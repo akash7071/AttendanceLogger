@@ -11,6 +11,6 @@
 #define SRC_TIMERS_H_
 
 void LETIMER0_init();
-void timerWaitUs(int wait);
+void timerWaitUs_irq(int wait);
 
 #endif /* SRC_TIMERS_H_ */

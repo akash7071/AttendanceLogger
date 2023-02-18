@@ -26,7 +26,8 @@
 #include <string.h>
 
 #include "gpio.h"
-
+#define INCLUDE_LOG_DEBUG 1
+#include "src/log.h"
 
 // Student Edit: Define these, 0's are placeholder values.
 // See the radio board user guide at https://www.silabs.com/documents/login/user-guides/ug279-brd4104a-user-guide.pdf
@@ -59,12 +60,14 @@ void gpioInit()
 
 void gpioLed0SetOn()
 {
+  //LOG_INFO("LED ON\n\r");
 	GPIO_PinOutSet(LED0_port,LED0_pin);
 }
 
 
 void gpioLed0SetOff()
 {
+  //LOG_INFO("LED OFF\n\r");
 	GPIO_PinOutClear(LED0_port,LED0_pin);
 }
 

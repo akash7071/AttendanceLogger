@@ -12,9 +12,11 @@
 #ifndef SRC_I2C_H_
 #define SRC_I2C_H_
 
-void I2CSPM_Sensor_Init();
-void I2CSPM_Get_Temperature();
-uint16_t I2CSPM_read_temperature();
-void read_temp_from_si7021();
+void I2C_Sensor_Init();
+void I2C_write_Temperature();
+void I2C_read_temperature();
+uint16_t calculate_temperature();
+void sensor_enable();
+void sensor_write_temperature();
 
 #endif /* SRC_I2C_H_ */
