@@ -3359,7 +3359,7 @@ sl_status_t sl_bt_connection_open(bd_addr address,
  *   Use 0x0000 for default value
  *   @endparblock
  * @param[in] timeout @parblock
- *   Supervision timeout, which defines the time that the connection is
+ *   Supervision timeout, whic  h defines the time that the connection is
  *   maintained although the devices can't communicate at the currently
  *   configured connection intervals.
  *     - Range: 0x000a to 0x0c80

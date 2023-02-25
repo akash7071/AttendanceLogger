@@ -28,7 +28,6 @@
 #include "log.h"
 
 
-
 /**
  * @return a timestamp value for the logging functions, typically based on a
  * free running timer.

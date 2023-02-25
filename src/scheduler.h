@@ -10,6 +10,7 @@
 #define SRC_SCHEDULER_H_
 
 #include <stdint.h>
+#include "sl_bt_api.h"
 
 typedef enum {            //Event Declared as 0 has the highest priority and
     event_Timer_UF,       //the priority decreases as the count increases
@@ -20,7 +21,7 @@ typedef enum {            //Event Declared as 0 has the highest priority and
 void schedulerSetReadTemperature();
 void schedulerSetI2Ctransfer() ;
 void schedulerSetWaitDone();
-void Temperature_state_machine(int event);
+void Temperature_state_machine(sl_bt_msg_t *event);
 
 uint32_t getNextEvent();
 
