@@ -41,4 +41,8 @@ See [Mastering Markdown](https://guides.github.com/features/mastering-markdown/)
    Answer: 18.85 mA
    <br>Screenshot:  
    ![peak_current_phone_20ft_away](screenshots/assignment5/peak_current_phone_20ft_away.jpg)  
+<<<<<<< HEAD
    
+=======
+   
+>>>>>>> 977fa71873663a2da255a252e9e1764fa24f75ee
