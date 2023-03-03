@@ -34,11 +34,12 @@
 // and GPIO documentation at https://siliconlabs.github.io/Gecko_SDK_Doc/efm32g/html/group__GPIO.html
 // to determine the correct values for these.
 
-#define LED0_port  5
-#define LED0_pin   4
-#define LED1_port  5
-#define LED1_pin   5
-
+#define LED0_port       5
+#define LED0_pin        4
+#define LED1_port       5
+#define LED1_pin        5
+#define EXTCOMIN_PIN    3
+#define EXTCOMIN_PORT  13
 
 // Set GPIO drive strengths and modes of operation
 void gpioInit()
@@ -93,6 +94,16 @@ void gpioSi7021Disable()
     GPIO_PinOutClear(3, 15);
 }
 
+void gpioSetDisplayExtcomin(bool status)
+{
+   if(status) {
+       GPIO_PinOutSet(EXTCOMIN_PORT,EXTCOMIN_PIN);
+   }
+   else {
+       GPIO_PinOutClear(EXTCOMIN_PORT,EXTCOMIN_PIN);
+   }
+
+}
 
 
 

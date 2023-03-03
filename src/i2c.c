@@ -78,7 +78,7 @@ uint16_t calculate_temperature() {
 }
 
 void sensor_enable(){
-  gpioSi7021Enable();                                       //Enable the SENSOR_ENABLE
+  //gpioSi7021Enable();                                       //Enable the SENSOR_ENABLE
   timerWaitUs_irq(POWER_ON_SEQ_US);                         //Wait for the Sensor to power up
 }
 

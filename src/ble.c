@@ -13,6 +13,8 @@
 #include "src/log.h"
 #include "src/timers.h"
 #include "em_letimer.h"
+#include "lcd.h"
+#include "ble_device_type.h"
 
 #define INTERVAL_MIN               250
 #define INTERVAL_MAX               250
@@ -40,6 +42,9 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
   switch (SL_BT_MSG_ID(evt->header)) {
     case sl_bt_evt_system_boot_id:                  //Boot Event
       sc = sl_bt_system_get_identity_address(&ble_data.myAddress, &ble_data.myAddressType);  //Returns the unique BT device Address
+      displayInit();
+      displayPrintf(DISPLAY_ROW_NAME, BLE_DEVICE_TYPE_STRING);
+      displayPrintf(DISPLAY_ROW_BTADDR, "%x:%x:%x:%x:%x", ble_data.myAddress.addr[0], ble_data.myAddress.addr[1], ble_data.myAddress.addr[2], ble_data.myAddress.addr[3], ble_data.myAddress.addr[4], ble_data.myAddress.addr[5]);
       if (sc != SL_STATUS_OK) {
           LOG_ERROR("sl_bt_system_get_identity_address() returned non-zero status=0x%04x\n\r", (unsigned int) sc);
       }
@@ -69,6 +74,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
           LOG_ERROR("sl_bt_connection_set_parameters() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
       }
       ble_data.connection_open = true;
+      displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
       // handle open event
       break;
     case sl_bt_evt_connection_closed_id:                                          // handle close event
@@ -78,7 +84,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       }
       ble_data.connection_open = false;
       ble_data.indication_in_flight = false;
-
+      displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising");
       break;
     case sl_bt_evt_connection_parameters_id:                            //Displays Connection Parameters
       LOG_INFO("Master Connection Parameters - INTERVAL = %dms, SLAVE LATENCY = %d, TIMEOUT = %dms\n\r",
@@ -106,6 +112,8 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       LOG_ERROR("Indication Error\n\r");
       ble_data.indication_in_flight=false;
       break;
+    case sl_bt_evt_system_soft_timer_id:
+      displayUpdate();
   } // end - switch
 } // handle_ble_event()
 

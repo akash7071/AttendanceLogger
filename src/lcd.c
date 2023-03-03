@@ -67,7 +67,7 @@
 
 
 #include "lcd.h"
-
+#include "ble.h"
 
 // Include logging specifically for this .c file
 #define INCLUDE_LOG_DEBUG 1
@@ -248,8 +248,8 @@ void displayInit()
     memset(display,0,sizeof(struct display_data));
     display->last_extcomin_state_high = false;
 
-
     // Edit #1
+    gpioSi7021Enable();
     // Students: If you created a function for A3, A4 and A5 that turns power on and
     //           off to the Si7021, call the "On" function here. If not create the function
     //           gpioSensorEnSetOn() to set SENSOR_ENABLE=1, see main board schematic,
@@ -260,8 +260,6 @@ void displayInit()
     //gpioSensorEnSetOn(); // we need SENSOR_ENABLE=1 which is tied to DISP_ENABLE
     //                     // for the LCD, on all the time now
 
-
-
     // Init the dot matrix display data structure
     display->dmdInitConfig = 0;
     //status = DMD_init(&display->dmdInitConfig);
@@ -270,16 +268,15 @@ void displayInit()
         LOG_ERROR("DMD_init() returned non-zero error code=0x%04x", (unsigned int) status);
     }
 
-
     // Initialize the glib context
     status = GLIB_contextInit(&display->glibContext);
     if (status != GLIB_OK) {
         LOG_ERROR("GLIB_contextInit() returned non-zero error code=0x%04x", (unsigned int) status);
     }
+
     // Set the fore and background colors
     display->glibContext.backgroundColor = White;
     display->glibContext.foregroundColor = Black;
-
 
     // Fill lcd with background color i.e. clear the LCD display
     status = GLIB_clear(&display->glibContext);
@@ -287,19 +284,16 @@ void displayInit()
         LOG_ERROR("GLIB_clear() returned non-zero error code=0x%04x", (unsigned int) status);
     }
 
-
     // Use Narrow font
     status = GLIB_setFont(&display->glibContext, (GLIB_Font_t *) &GLIB_FontNarrow6x8);
     if (status != GLIB_OK) {
         LOG_ERROR("GLIB_setFont() returned non-zero error code=0x%04x", (unsigned int) status);
     }
 
-
     status = DMD_updateDisplay();
     if (status != DMD_OK) {
         LOG_ERROR("DMD_updateDisplay() returned non-zero error code=0x%04x", (unsigned int) status);
     }
-
 
 	  // The BT stack implements timers that we can setup and then have the stack pass back
 	  // events when the timer expires.
@@ -314,15 +308,15 @@ void displayInit()
     // Edit #3
     // Students: Figure out what parameters to pass in to sl_bt_system_set_soft_timer() to
     //           set up a 1 second repeating soft timer and uncomment the following lines
+    ble_data_struct_t *ble_data_ptr = ble_get_data_struct();
 
-	  //sl_status_t          timer_response;
-	  //timer_response = sl_bt_system_set_soft_timer();
-	  //if (timer_response != SL_STATUS_OK) {
-	  //    LOG_...
-    // }
-
-
-
+	  sl_status_t          timer_response;
+	  timer_response = sl_bt_system_set_soft_timer(32768, ble_data_ptr -> temperatureSetHandle, 0);
+	  if (timer_response != SL_STATUS_OK) {
+	      LOG_ERROR("sl_bt_system_set_soft_timer() returned non-zero status=0x%04x\n\r", (unsigned int)timer_response);
+    }
+	  displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising");
+	  displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A6");
 } // displayInit()
 
 
@@ -345,7 +339,7 @@ void displayUpdate()
 	//           the EXTCOMIN input to the LCD. Add that function to gpio.c./.h
 	//           Then uncomment the following line.
 	//
-	//gpioSetDisplayExtcomin(display->last_extcomin_state_high);
+	gpioSetDisplayExtcomin(display->last_extcomin_state_high);
 	
 } // displayUpdate()
 

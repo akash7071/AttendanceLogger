@@ -40,7 +40,7 @@ void gpioLed1SetOn();
 void gpioLed1SetOff();
 void gpioSi7021Enable();
 void gpioSi7021Disable();
-
+void gpioSetDisplayExtcomin(bool status);
 
 
 

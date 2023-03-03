@@ -19,6 +19,7 @@
 #include "ble.h"
 #include "em_letimer.h"
 #define I2C_TRANSFER_WAIT   10800
+#include "lcd.h"
 
 typedef enum {
   START_Sensor,
@@ -90,6 +91,9 @@ void Temperature_state_machine(sl_bt_msg_t *event){
             current_state = WRITE;
         }
     }
+    else if(ble_temp->connection_open == true && ble_temp ->ok_to_send_htm_indications == false){
+        displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
+    }
     break;
     case WRITE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){          //Starts I2C Write after Power On Reset
         sensor_write_temperature();
@@ -111,11 +115,12 @@ void Temperature_state_machine(sl_bt_msg_t *event){
     }
     break;
     case CALCULATE: if(event -> data.evt_system_external_signal.extsignals== (1<<event_I2C_transferDone)){    //Processes and calculates temperature
-        gpioSi7021Disable();                                  //Disable the SENSOR_ENABLE
+        //gpioSi7021Disable();                                  //Disable the SENSOR_ENABLE
         NVIC_DisableIRQ(I2C0_IRQn);
         sl_power_manager_remove_em_requirement(SL_POWER_MANAGER_EM1);
         temperature = calculate_temperature();
         ble_send_indication(temperature);
+        displayPrintf(DISPLAY_ROW_TEMPVALUE, "TEMP = %d", temperature);
         current_state = START_Sensor;
     }
     break;
