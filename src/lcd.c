@@ -308,15 +308,13 @@ void displayInit()
     // Edit #3
     // Students: Figure out what parameters to pass in to sl_bt_system_set_soft_timer() to
     //           set up a 1 second repeating soft timer and uncomment the following lines
-    ble_data_struct_t *ble_data_ptr = ble_get_data_struct();
 
 	  sl_status_t          timer_response;
-	  timer_response = sl_bt_system_set_soft_timer(32768, ble_data_ptr -> temperatureSetHandle, 0);
+	  uint8_t timerHandle =0;
+	  timer_response = sl_bt_system_set_soft_timer(32768, timerHandle, 0);
 	  if (timer_response != SL_STATUS_OK) {
 	      LOG_ERROR("sl_bt_system_set_soft_timer() returned non-zero status=0x%04x\n\r", (unsigned int)timer_response);
     }
-	  displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising");
-	  displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A6");
 } // displayInit()
 
 

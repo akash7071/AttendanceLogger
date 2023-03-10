@@ -161,9 +161,11 @@ SL_WEAK void app_init(void)
 #endif
    gpioInit();                            //Initializing GPIO LED0
    init_Clock();                          //Initializing Clock LXFO and ULFCRO
+#if DEVICE_IS_BLE_SERVER
    LETIMER0_init();                       //Initializing Timer with COMP0 and COMP1
    NVIC_ClearPendingIRQ(LETIMER0_IRQn);   //Enabling Interrupt in NVIC
    NVIC_EnableIRQ(LETIMER0_IRQn);
+#endif
 } // app_init()
 
 
@@ -231,8 +233,10 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
    // Sequence through states driven by events.
    // Modify your state machine to look for the appropriate event ID value,
    // and extsignals value you passed from your schedulerSetEventXXX() functions.
+#if DEVICE_IS_BLE_SERVER
    Temperature_state_machine(evt);    // put this code in scheduler.c/.h
-
-
+#else
+   discovery_state_machine(evt);
+#endif
 } // sl_bt_on_event()
 

@@ -22,7 +22,7 @@ void schedulerSetReadTemperature();
 void schedulerSetI2Ctransfer() ;
 void schedulerSetWaitDone();
 void Temperature_state_machine(sl_bt_msg_t *event);
-
+void discovery_state_machine(sl_bt_msg_t *event);
 uint32_t getNextEvent();
 
 #endif /* SRC_SCHEDULER_H_ */

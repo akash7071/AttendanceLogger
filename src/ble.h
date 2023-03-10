@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "sl_bt_api.h"
+#include <math.h>
 
 #define UINT8_TO_BITSTREAM(p, n) { *(p)++ = (uint8_t)(n); }
 #define UINT32_TO_BITSTREAM(p, n) { *(p)++ = (uint8_t)(n); *(p)++ = (uint8_t)((n) >> 8); \
@@ -30,9 +31,12 @@ typedef struct {
   bool          connection_open;            // true when in an open connection
   bool          ok_to_send_htm_indications; // true when client enabled indications
   bool          indication_in_flight;
+  uint32_t      serviceHandle;
+  uint16_t      characteristicHandle;
 } ble_data_struct_t;
 
 void handle_ble_event(sl_bt_msg_t *evt);
 ble_data_struct_t* ble_get_data_struct();
 void ble_send_indication(uint16_t temperature);
+
 #endif /* SRC_BLE_H_ */

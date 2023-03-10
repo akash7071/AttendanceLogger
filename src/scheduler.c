@@ -20,6 +20,10 @@
 #include "em_letimer.h"
 #define I2C_TRANSFER_WAIT   10800
 #include "lcd.h"
+uint16_t TEMPERATURE_SERVICE_UUID = 0x1809;
+uint16_t TEMPERATURE_CHAR_UUID    = 0x1C2A;
+const uint8_t TEMPERATURE_SERVICE[2] = {0x09, 0x18};
+const uint8_t TEMPERATURE_CHAR[2] = {0x1C, 0x2A};
 
 typedef enum {
   START_Sensor,
@@ -28,6 +32,14 @@ typedef enum {
   READ,
   CALCULATE,
 }states_t;
+
+typedef enum{
+  DISCOVER_SERVICES,
+  DISCOVER_CHARACTERISTICS,
+  INDICATE,
+  CHECK,
+  WAIT_FOR_CLOSE,
+}discovery_state_t;
 
 uint32_t Curr_Events =0;
 int current_state =START_Sensor;
@@ -82,7 +94,7 @@ void schedulerSetI2Ctransfer() {
 void Temperature_state_machine(sl_bt_msg_t *event){
   uint16_t temperature =0;
   if(SL_BT_MSG_ID(event->header) != sl_bt_evt_system_external_signal_id)
-      return;
+    return;
   ble_data_struct_t *ble_temp= ble_get_data_struct();
   switch(current_state) {                                 //TUrns the Sensor on Underflow event
     case START_Sensor: if(ble_temp->connection_open ==true && ble_temp->ok_to_send_htm_indications == true){
@@ -95,12 +107,14 @@ void Temperature_state_machine(sl_bt_msg_t *event){
         displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
     }
     break;
+
     case WRITE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){          //Starts I2C Write after Power On Reset
         sensor_write_temperature();
         current_state = WAIT;
         sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM1);
     }
     break;
+
     case WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)){      //Waits until the Write is Complete
         NVIC_DisableIRQ(I2C0_IRQn);
         sl_power_manager_remove_em_requirement(SL_POWER_MANAGER_EM1);
@@ -108,20 +122,79 @@ void Temperature_state_machine(sl_bt_msg_t *event){
         current_state = READ;
     }
     break;
+
     case READ: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){          //Sends a I2c Read to get Temperature
         I2C_read_temperature();
         current_state = CALCULATE;
         sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM1);
     }
     break;
+
     case CALCULATE: if(event -> data.evt_system_external_signal.extsignals== (1<<event_I2C_transferDone)){    //Processes and calculates temperature
-        //gpioSi7021Disable();                                  //Disable the SENSOR_ENABLE
         NVIC_DisableIRQ(I2C0_IRQn);
         sl_power_manager_remove_em_requirement(SL_POWER_MANAGER_EM1);
         temperature = calculate_temperature();
         ble_send_indication(temperature);
         displayPrintf(DISPLAY_ROW_TEMPVALUE, "TEMP = %d", temperature);
         current_state = START_Sensor;
+    }
+    break;
+  }
+}
+
+void discovery_state_machine(sl_bt_msg_t *event) {
+  static int d_curr_state;
+  uint8_t sc= 0;
+  ble_data_struct_t *ble_client= ble_get_data_struct();
+  switch(d_curr_state){
+    case DISCOVER_SERVICES: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_opened_id){
+        sc = sl_bt_gatt_discover_primary_services_by_uuid(ble_client ->temperatureSetHandle, sizeof(uint16_t), &TEMPERATURE_SERVICE[0]);
+        if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
+            LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
+        d_curr_state = DISCOVER_CHARACTERISTICS;
+    }
+    break;
+
+    case DISCOVER_CHARACTERISTICS: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
+        LOG_INFO("COMING INSIDE\n\r");
+        sc = sl_bt_gatt_discover_characteristics_by_uuid(ble_client->temperatureSetHandle, ble_client->serviceHandle, sizeof(uint16_t), &TEMPERATURE_CHAR[0]);
+        if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
+            LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
+        d_curr_state = INDICATE;
+    }
+    else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
+        d_curr_state = DISCOVER_SERVICES;
+        ble_client -> connection_open = false;
+    }
+    break;
+
+    case INDICATE: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
+        sc = sl_bt_gatt_set_characteristic_notification(ble_client->temperatureSetHandle, ble_client->characteristicHandle, gatt_indication);
+        if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
+            LOG_ERROR("sl_bt_gatt_set_characteristic_notification() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
+        d_curr_state = CHECK;
+        displayPrintf(DISPLAY_ROW_CONNECTION, "Handling Indications");
+    }
+    else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
+         d_curr_state = DISCOVER_SERVICES;
+         ble_client -> connection_open = false;
+    }
+    break;
+
+    case CHECK: if(event == (sl_bt_msg_t *)sl_bt_evt_gatt_procedure_completed_id) {
+        d_curr_state = WAIT_FOR_CLOSE;
+    }
+    else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
+         d_curr_state = DISCOVER_SERVICES;
+         ble_client -> connection_open = false;
+     }
+    break;
+
+    case WAIT_FOR_CLOSE: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id){
+        d_curr_state = DISCOVER_SERVICES;
     }
     break;
   }
