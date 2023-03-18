@@ -15,9 +15,11 @@
 #include "scheduler.h"
 #include "em_i2c.h"
 #include "app.h"
+#include "lcd.h"
+#include "em_gpio.h"
 
 uint32_t flags =0, TIMER_3S_INC =0;
-
+//static bool buttonStatus = false;
 void LETIMER0_IRQHandler (void) {
   flags = LETIMER_IntGetEnabled(LETIMER0);        //Get interrupt flags detail
   if(flags &LETIMER_IF_UF){                       //Checking if UF caused the int
@@ -40,6 +42,23 @@ void I2C0_IRQHandler(void){
   if(transferStatus < 0){
       LOG_ERROR("%d", transferStatus);
   }
+}
+
+void GPIO_EVEN_IRQHandler(void) {
+  //uint32_t gpioInput = GPIO->IFC;
+  uint32_t gpioInput = GPIO_IntGet();
+  GPIO_IntClear(gpioInput);
+  bool buttonStatus = GPIO_PinInGet(5, 6);
+   if(gpioInput & 0x40) {
+       if(!buttonStatus){
+           schedulerSetButtonPressed();
+           buttonStatus = true;
+       }
+       else {
+           schedulerSetButtonReleased();
+           buttonStatus = false;
+       }
+   }
 }
 
 int letimerMilliseconds() {                      //Returns Time it is running in a multiple of 3S.

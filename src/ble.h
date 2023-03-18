@@ -31,6 +31,10 @@ typedef struct {
   bool          connection_open;            // true when in an open connection
   bool          ok_to_send_htm_indications; // true when client enabled indications
   bool          indication_in_flight;
+  bool          isBonded;
+  bool          ok_to_send_button_indications;
+  uint8_t       buttonStatus;
+  uint8_t       queued_indications;
   uint32_t      serviceHandle;
   uint16_t      characteristicHandle;
 } ble_data_struct_t;
@@ -38,5 +42,14 @@ typedef struct {
 void handle_ble_event(sl_bt_msg_t *evt);
 ble_data_struct_t* ble_get_data_struct();
 void ble_send_indication(uint16_t temperature);
+
+typedef struct {
+  uint16_t      charHandle;
+  size_t        bufferLength;
+  uint8_t       buffer[5];
+} queue_struct_t;
+
+bool write_queue (uint16_t charHandle, size_t bufferLength, uint8_t *buffer);
+bool read_queue (uint16_t *charHandle, size_t *bufferLength, uint8_t *buffer);
 
 #endif /* SRC_BLE_H_ */

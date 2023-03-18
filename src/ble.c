@@ -16,6 +16,8 @@
 #include "em_letimer.h"
 #include "lcd.h"
 #include "ble_device_type.h"
+#include "scheduler.h"
+#include "gpio.h"
 
 #define INTERVAL_MIN               250
 #define INTERVAL_MAX               250
@@ -33,6 +35,8 @@
 #define SCAN_WINDOW                 40      //40ms/0.625ms
 #define CLIENT_SUPERVISION_TIMEOUT  82      //825 ms
 #define CLIENT_MAX_CE_LENGTH        5
+#define QUEUE_DEPTH                (16)
+#define BUFFER_SIZE                 5
 
 // BLE private data
 ble_data_struct_t ble_data;
@@ -40,6 +44,16 @@ sl_status_t sc=0; // status code
 int temperature_in_c;
 uint8_t server[6] = SERVER_BT_ADDRESS;
 uint8_t *temperature;
+queue_struct_t   my_queue[QUEUE_DEPTH]; // the queue - an array of structs
+uint32_t         wptr = 0;              // write pointer
+uint32_t         rptr = 0;              // read pointer
+uint32_t    queue_length =0;
+bool      isfull = false;
+bool      isempty = true;
+uint16_t charHandle_tmp =0;
+size_t  bufferLength_tmp = 0;
+uint8_t buffer[5];
+
 ble_data_struct_t* ble_get_data_struct()             //Function to get a pointer to the Data Structure
 {
   return (&ble_data);
@@ -85,6 +99,14 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       if (sc != SL_STATUS_OK) {
           LOG_ERROR("sl_bt_system_get_identity_address() returned non-zero status=0x%04x\n\r", (unsigned int) sc);
       }
+      sc = sl_bt_sm_delete_bondings();
+      if(sc != SL_STATUS_OK){
+          LOG_ERROR("sl_bt_sm_delete_bondings() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+      }
+      sc = sl_bt_sm_configure(0x2F, sl_bt_sm_io_capability_displayyesno);
+      if(sc != SL_STATUS_OK){
+          LOG_ERROR("sl_bt_sm_configure() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+      }
       sc = sl_bt_advertiser_create_set(&ble_data.advertisingSetHandle);                     //Create an Advertising set
       if(sc != SL_STATUS_OK){
           LOG_ERROR("sl_bt_advertiser_create_set() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
@@ -99,7 +121,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
           LOG_ERROR("sl_bt_advertiser_start() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
       }
       displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising");
-      displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A7");
+      displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A8");
       break;
 
     case sl_bt_evt_connection_opened_id:                    //Connection Open Event
@@ -116,44 +138,162 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
       // handle open event
       break;
+
+    case sl_bt_evt_sm_confirm_bonding_id:
+          sl_bt_sm_bonding_confirm(ble_data.temperatureSetHandle, 1);
+      break;
+
+    case sl_bt_evt_sm_confirm_passkey_id:
+          displayPrintf(DISPLAY_ROW_PASSKEY, "Passkey %d", evt ->data.evt_sm_passkey_display.passkey);
+          displayPrintf(DISPLAY_ROW_ACTION, "Confirm with PB0");
+      break;
+
+    case sl_bt_evt_system_external_signal_id:
+      if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
+          displayPrintf(DISPLAY_ROW_9, "Button Pressed");
+          ble_data.buttonStatus = 0x01;
+          if(ble_data.isBonded == true) {
+              sc = sl_bt_gatt_server_write_attribute_value(gattdb_button_state, 0 , 1, &ble_data.buttonStatus);
+              if(sc != SL_STATUS_OK){
+                  LOG_ERROR("sl_bt_gatt_server_write_attribute_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+              }
+              if(ble_data.ok_to_send_button_indications) {
+                  LOG_INFO("BUTTON PRESSED Enqueued\n\r");
+                  if(ble_data.indication_in_flight) {
+                      write_queue(gattdb_button_state, 1, &ble_data.buttonStatus);
+                      ble_data.queued_indications++;
+                  }
+                  else {
+                      sc = sl_bt_gatt_server_send_indication(ble_data.temperatureSetHandle, gattdb_button_state, 1, &ble_data.buttonStatus);
+                      if(sc != SL_STATUS_OK) {
+                          LOG_ERROR("sl_bt_gatt_server_send_indication 4 () returned non-zero status=0x%04x\n\r", (unsigned int) sc);
+                      }
+                      else {
+                          ble_data.indication_in_flight = true;
+                      }
+                  }
+              }
+          }
+          else {
+              sl_bt_sm_passkey_confirm(ble_data.temperatureSetHandle, 1);
+          }
+      }
+      if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonReleased)) {
+          displayPrintf(DISPLAY_ROW_9, "Button Released");
+          ble_data.buttonStatus = 0x00;
+          if(ble_data.isBonded == true) {
+               sc = sl_bt_gatt_server_write_attribute_value(gattdb_button_state, 0 , 1, &ble_data.buttonStatus);
+               if(sc != SL_STATUS_OK){
+                   LOG_ERROR("sl_bt_gatt_server_write_attribute_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+               }
+               if(ble_data.ok_to_send_button_indications) {
+                   LOG_INFO("BUTTON RELEASED Enqueued\n\r");
+                   if(ble_data.indication_in_flight) {
+                       write_queue(gattdb_button_state, 1, &ble_data.buttonStatus);
+                       ble_data.queued_indications++;
+                   }
+                   else {
+                       sc = sl_bt_gatt_server_send_indication(ble_data.temperatureSetHandle, gattdb_button_state, 1, &ble_data.buttonStatus);
+                       if(sc != SL_STATUS_OK) {
+                           LOG_ERROR("sl_bt_gatt_server_send_indication 3 () returned non-zero status=0x%04x\n\r", (unsigned int) sc);
+                       }
+                       else {
+                           ble_data.indication_in_flight = true;
+                       }
+                   }
+               }
+           }
+      }
+      break;
+
+    case sl_bt_evt_sm_bonded_id:
+      ble_data.isBonded = true;
+      displayPrintf(DISPLAY_ROW_PASSKEY, " ");
+      displayPrintf(DISPLAY_ROW_ACTION, " ");
+      displayPrintf(DISPLAY_ROW_CONNECTION, "Bonded");
+      break;
+
+    case sl_bt_evt_sm_bonding_failed_id:
+      ble_data.isBonded = false;
+      displayPrintf(DISPLAY_ROW_PASSKEY, " ");
+      displayPrintf(DISPLAY_ROW_ACTION, " ");
+      break;
+
     case sl_bt_evt_connection_closed_id:                                          // handle close event
+      sc = sl_bt_sm_delete_bondings();
+      if(sc != SL_STATUS_OK){
+          LOG_ERROR("sl_bt_sm_delete_bondings() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+      }
       sc = sl_bt_advertiser_start(ble_data.advertisingSetHandle, sl_bt_advertiser_general_discoverable,sl_bt_advertiser_connectable_scannable);
       if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
           LOG_ERROR("sl_bt_advertiser_start() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
       }
       ble_data.connection_open = false;
       ble_data.indication_in_flight = false;
+      ble_data.isBonded = false;
       displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising");
       displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
       break;
+
     case sl_bt_evt_connection_parameters_id:                            //Displays Connection Parameters
       LOG_INFO("Master Connection Parameters - INTERVAL = %dms, SLAVE LATENCY = %d, TIMEOUT = %dms\n\r",
                ((int)evt->data.evt_connection_parameters.interval),
                ((int)evt->data.evt_connection_parameters.latency),
                ((int)evt->data.evt_connection_parameters.timeout));
       break;
+
     case sl_bt_evt_gatt_server_characteristic_status_id:                //Checks if indication is pressed on temperature measurement
       if  (evt->data.evt_gatt_server_characteristic_status.characteristic == gattdb_temperature_measurement)
       {
-        if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config){
-            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_indication){
+        if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config) {
+            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_indication) {
                 ble_data.ok_to_send_htm_indications = true;
+                gpioLed0SetOn();
             }
-            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_disable){
+            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_disable) {
                 ble_data.ok_to_send_htm_indications = false;
+                gpioLed0SetOff();
             }
-        }
-        if(evt->data.evt_gatt_server_characteristic_status.status_flags  == sl_bt_gatt_server_confirmation){
-            ble_data.indication_in_flight = false;
         }
       }
+      if(evt->data.evt_gatt_server_characteristic_status.characteristic == gattdb_button_state)
+      {
+        if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config) {
+            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_indication) {
+                ble_data.ok_to_send_button_indications = true;
+                gpioLed1SetOn();
+            }
+            if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_disable) {
+                ble_data.ok_to_send_button_indications = false;
+                gpioLed1SetOff();
+            }
+        }
+      }
+      if(evt->data.evt_gatt_server_characteristic_status.status_flags  == sl_bt_gatt_server_confirmation) {
+           ble_data.indication_in_flight = false;
+      }
       break;
+
     case sl_bt_evt_gatt_server_indication_timeout_id:
       LOG_ERROR("Indication Error\n\r");
       ble_data.indication_in_flight=false;
       break;
+
     case sl_bt_evt_system_soft_timer_id:
+      memset(buffer,0,BUFFER_SIZE);
       displayUpdate();
+      if(ble_data.isBonded && ble_data.queued_indications && !ble_data.indication_in_flight) {
+          if(!read_queue(&charHandle_tmp, &bufferLength_tmp, &buffer[0])) {
+              ble_data.queued_indications--;
+              sc = sl_bt_gatt_server_send_indication(ble_data.temperatureSetHandle, charHandle_tmp, bufferLength_tmp, &buffer[0]);
+              if(sc != SL_STATUS_OK) {
+                  LOG_ERROR("sl_bt_gatt_server_send_indication 2 () returned non-zero status=0x%04x\n\r", (unsigned int) sc);
+              }
+              else {
+                  ble_data.indication_in_flight = true;
+              }
+          }
+      }
       break;
 
 #else
@@ -240,7 +380,6 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 } // handle_ble_event()
 
 
-
 void ble_send_indication(uint16_t temperature)
 {
   uint8_t        htm_temperature_buffer[5];                                   //5 bytes, 1st byte is metadata and the last 4 bytes stores the value
@@ -258,16 +397,66 @@ void ble_send_indication(uint16_t temperature)
     if(ble_data.indication_in_flight==false) {                              //If the radio is not busy Starts sending indication
         sc = sl_bt_gatt_server_send_indication(ble_data.temperatureSetHandle,gattdb_temperature_measurement,5,&htm_temperature_buffer[0]);
         if (sc != SL_STATUS_OK) {
-            LOG_ERROR("sl_bt_gatt_server_send_indication() returned non-zero status=0x%04x\n\r", (unsigned int) sc);
+            LOG_ERROR("sl_bt_gatt_server_send_indication 1() returned non-zero status=0x%04x\n\r", (unsigned int) sc);
         }
         else {
             ble_data.indication_in_flight = true;
             LOG_INFO("Temperature=%d C\n\r", temperature);
         }
     }
+    else {
+        write_queue(gattdb_temperature_measurement, 5, &htm_temperature_buffer);
+        ble_data.queued_indications++;
+    }
   }
 }
 
+static uint32_t nextPtr(uint32_t ptr) {
+  ptr = (ptr +1)&(QUEUE_DEPTH-1);         //Advance Pointer and Rollover
+  return ptr;
+} // nextPtr()
+
+bool read_queue (uint16_t *charHandle, size_t *bufferLength, uint8_t *buffer) {
+  if(!isempty){
+    *charHandle = my_queue[rptr].charHandle;             //Dequeuing Element out
+    *bufferLength = my_queue[rptr].bufferLength;
+    memcpy(buffer,my_queue[rptr].buffer , my_queue[rptr].bufferLength);
+    if(isfull){                        //If full release pointer and clear flag
+      isfull = false;
+      wptr = nextPtr(wptr);
+    }
+    rptr = nextPtr(rptr);       //Advance Read Pointer after Dequeuing
+    queue_length --;
+    if(wptr == rptr) {          //Checking for Empty condition
+      isempty =true;
+    }
+    return false;
+  }
+  else {
+    return true;
+  }
+} // read_queue()
+
+
+bool write_queue (uint16_t charHandle, size_t bufferLength, uint8_t *buffer) {
+  if(!isfull){
+    my_queue[wptr].charHandle = charHandle;     //Inserting the element in the queue
+    my_queue[wptr].bufferLength = bufferLength;
+    memcpy(my_queue[wptr].buffer, buffer, bufferLength);
+    isempty = false;        //After write, clearing the empty flag
+    queue_length ++;
+    if(nextPtr(wptr) != rptr) {     //If increment wptr is not equal to rptr
+      wptr = nextPtr(wptr);   // we advance the pointer
+    }
+    else{                           //Otherwise we set the Full flag
+      isfull =true;
+    }
+    return false;
+  }
+  else {
+    return true;
+  }
+} // write_queue()
 
 
 

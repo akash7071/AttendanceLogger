@@ -72,6 +72,25 @@ void schedulerSetI2Ctransfer() {
   CORE_EXIT_CRITICAL();          // exit critical
 }
 
+void schedulerSetButtonPressed(){
+  CORE_DECLARE_IRQ_STATE;
+  // set event
+  CORE_ENTER_CRITICAL();         // enter critical, turn off interrupts in NVIC
+  //Curr_Events |= 1<<(event_Timer_COMP1); // RMW 0xb0010
+  sl_bt_external_signal(1<<(event_ButtonPressed));
+  CORE_EXIT_CRITICAL();          // exit critical
+}
+
+void schedulerSetButtonReleased() {
+  CORE_DECLARE_IRQ_STATE;
+   // set event
+   CORE_ENTER_CRITICAL();         // enter critical, turn off interrupts in NVIC
+   //Curr_Events |= 1<<(event_Timer_COMP1); // RMW 0xb0010
+   sl_bt_external_signal(1<<(event_ButtonReleased));
+   CORE_EXIT_CRITICAL();          // exit critical
+
+}
+
 /*uint32_t getNextEvent(){
   uint32_t get_event =3;
   if(Curr_Events & (1<<event_Timer_UF)){                //Checking for Underflow event
@@ -97,25 +116,25 @@ void Temperature_state_machine(sl_bt_msg_t *event){
     return;
   ble_data_struct_t *ble_temp= ble_get_data_struct();
   switch(current_state) {                                 //TUrns the Sensor on Underflow event
-    case START_Sensor: if(ble_temp->connection_open ==true && ble_temp->ok_to_send_htm_indications == true){
+    case START_Sensor: if(ble_temp->connection_open ==true && ble_temp->ok_to_send_htm_indications == true) {
         if(event -> data.evt_system_external_signal.extsignals== (1<<event_Timer_UF)) {
             sensor_enable();
             current_state = WRITE;
         }
     }
-    else if(ble_temp->connection_open == true && ble_temp ->ok_to_send_htm_indications == false){
+    else if(ble_temp->connection_open == true && ble_temp ->ok_to_send_htm_indications == false) {
         displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
     }
     break;
 
-    case WRITE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){          //Starts I2C Write after Power On Reset
+    case WRITE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {          //Starts I2C Write after Power On Reset
         sensor_write_temperature();
         current_state = WAIT;
         sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM1);
     }
     break;
 
-    case WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)){      //Waits until the Write is Complete
+    case WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {      //Waits until the Write is Complete
         NVIC_DisableIRQ(I2C0_IRQn);
         sl_power_manager_remove_em_requirement(SL_POWER_MANAGER_EM1);
         timerWaitUs_irq(I2C_TRANSFER_WAIT);
@@ -178,6 +197,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
         d_curr_state = CHECK;
         displayPrintf(DISPLAY_ROW_CONNECTION, "Handling Indications");
     }
+
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
          d_curr_state = DISCOVER_SERVICES;
          ble_client -> connection_open = false;
