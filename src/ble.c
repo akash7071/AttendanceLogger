@@ -405,7 +405,7 @@ void ble_send_indication(uint16_t temperature)
         }
     }
     else {
-        write_queue(gattdb_temperature_measurement, 5, &htm_temperature_buffer);
+        write_queue(gattdb_temperature_measurement, 5, &htm_temperature_buffer[0]);
         ble_data.queued_indications++;
     }
   }
