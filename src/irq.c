@@ -45,20 +45,40 @@ void I2C0_IRQHandler(void){
 }
 
 void GPIO_EVEN_IRQHandler(void) {
-  //uint32_t gpioInput = GPIO->IFC;
   uint32_t gpioInput = GPIO_IntGet();
   GPIO_IntClear(gpioInput);
   bool buttonStatus = GPIO_PinInGet(5, 6);
    if(gpioInput & 0x40) {
-       if(!buttonStatus){
+       if(!buttonStatus) {
            schedulerSetButtonPressed();
            buttonStatus = true;
+           LOG_INFO("PB0 Pressed\n\r");
        }
        else {
            schedulerSetButtonReleased();
            buttonStatus = false;
+           LOG_INFO("PB0 Released\n\r");
        }
    }
+}
+
+void GPIO_ODD_IRQHandler(void) {
+  uint32_t gpioInput = GPIO_IntGet();
+  GPIO_IntClear(gpioInput);
+  bool PB1_buttonStatus = GPIO_PinInGet(5,7);
+  if(gpioInput & 0x80) {
+    if(!PB1_buttonStatus) {
+      schedulerSetPB1Pressed();
+      PB1_buttonStatus = true;
+      LOG_INFO("PB1 Pressed\n\r");
+    }
+    else {
+        schedulerSetPB1Released();
+        PB1_buttonStatus = false;
+        LOG_INFO("PB1 Released\n\r");
+    }
+  }
+
 }
 
 int letimerMilliseconds() {                      //Returns Time it is running in a multiple of 3S.

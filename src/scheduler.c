@@ -20,10 +20,15 @@
 #include "em_letimer.h"
 #define I2C_TRANSFER_WAIT   10800
 #include "lcd.h"
+
+/*
 uint16_t TEMPERATURE_SERVICE_UUID = 0x1809;
 uint16_t TEMPERATURE_CHAR_UUID    = 0x1C2A;
+*/
+
 const uint8_t TEMPERATURE_SERVICE[2] = {0x09, 0x18};
 const uint8_t TEMPERATURE_CHAR[2] = {0x1C, 0x2A};
+
 
 typedef enum {
   START_Sensor,
@@ -34,8 +39,10 @@ typedef enum {
 }states_t;
 
 typedef enum{
-  DISCOVER_SERVICES,
-  DISCOVER_CHARACTERISTICS,
+  DISCOVER_HTM,
+  DISCOVER_HTM_CHARACTERISTICS,
+  DISCOVER_BUTTON_SERVICES,
+  DISCOVER_BUTTON_CHAR,
   INDICATE,
   CHECK,
   WAIT_FOR_CLOSE,
@@ -81,14 +88,31 @@ void schedulerSetButtonPressed(){
   CORE_EXIT_CRITICAL();          // exit critical
 }
 
-void schedulerSetButtonReleased() {
+void schedulerSetButtonReleased(){
+  CORE_DECLARE_IRQ_STATE;
+  // set event
+  CORE_ENTER_CRITICAL();         // enter critical, turn off interrupts in NVIC
+  //Curr_Events |= 1<<(event_Timer_COMP1); // RMW 0xb0010
+  sl_bt_external_signal(1<<(event_ButtonReleased));
+  CORE_EXIT_CRITICAL();          // exit critical
+}
+
+void schedulerSetPB1Pressed() {
   CORE_DECLARE_IRQ_STATE;
    // set event
    CORE_ENTER_CRITICAL();         // enter critical, turn off interrupts in NVIC
    //Curr_Events |= 1<<(event_Timer_COMP1); // RMW 0xb0010
-   sl_bt_external_signal(1<<(event_ButtonReleased));
+   sl_bt_external_signal(1<<(event_PB1Pressed));
    CORE_EXIT_CRITICAL();          // exit critical
+}
 
+void schedulerSetPB1Released() {
+  CORE_DECLARE_IRQ_STATE;
+   // set event
+   CORE_ENTER_CRITICAL();         // enter critical, turn off interrupts in NVIC
+   //Curr_Events |= 1<<(event_Timer_COMP1); // RMW 0xb0010
+   sl_bt_external_signal(1<<(event_PB1Released));
+   CORE_EXIT_CRITICAL();          // exit critical
 }
 
 /*uint32_t getNextEvent(){
@@ -166,26 +190,43 @@ void discovery_state_machine(sl_bt_msg_t *event) {
   uint8_t sc= 0;
   ble_data_struct_t *ble_client= ble_get_data_struct();
   switch(d_curr_state){
-    case DISCOVER_SERVICES: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_opened_id){
+    case DISCOVER_HTM: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_opened_id){
         sc = sl_bt_gatt_discover_primary_services_by_uuid(ble_client ->temperatureSetHandle, sizeof(uint16_t), &TEMPERATURE_SERVICE[0]);
-        if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
+        if(sc != SL_STATUS_OK){                                                        //Starts Advertising Back again
             LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
         }
-        d_curr_state = DISCOVER_CHARACTERISTICS;
+        d_curr_state = DISCOVER_HTM_CHARACTERISTICS;
     }
     break;
 
-    case DISCOVER_CHARACTERISTICS: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
-        LOG_INFO("COMING INSIDE\n\r");
+    case DISCOVER_HTM_CHARACTERISTICS: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
         sc = sl_bt_gatt_discover_characteristics_by_uuid(ble_client->temperatureSetHandle, ble_client->serviceHandle, sizeof(uint16_t), &TEMPERATURE_CHAR[0]);
         if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
             LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
         }
-        d_curr_state = INDICATE;
+        d_curr_state = DISCOVER_BUTTON_SERVICES;
     }
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
-        d_curr_state = DISCOVER_SERVICES;
+        d_curr_state = DISCOVER_HTM;
         ble_client -> connection_open = false;
+    }
+    break;
+
+    case DISCOVER_BUTTON_SERVICES: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
+        sc = sl_bt_gatt_discover_primary_services_by_uuid(ble_client->temperatureSetHandle, sizeof(PB0_Service_UUID), &PB0_Service_UUID[0]);
+        if(sc != SL_STATUS_OK){                                                       //Starts scanning for service UUID
+            LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
+        d_curr_state = DISCOVER_BUTTON_CHAR;
+    }
+    break;
+
+    case DISCOVER_BUTTON_CHAR: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
+        sc = sl_bt_gatt_discover_characteristics_by_uuid(ble_client->temperatureSetHandle, ble_client->ButtonServiceHandle, sizeof(PB0_Char_UUID), &PB0_Char_UUID[0]);
+        if(sc != SL_STATUS_OK){                                                       //Starts scanning for characteristics UUID
+            LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
+        d_curr_state = INDICATE;
     }
     break;
 
@@ -199,7 +240,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
     }
 
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
-         d_curr_state = DISCOVER_SERVICES;
+         d_curr_state = DISCOVER_HTM;
          ble_client -> connection_open = false;
     }
     break;
@@ -208,13 +249,13 @@ void discovery_state_machine(sl_bt_msg_t *event) {
         d_curr_state = WAIT_FOR_CLOSE;
     }
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
-         d_curr_state = DISCOVER_SERVICES;
+         d_curr_state = DISCOVER_HTM;
          ble_client -> connection_open = false;
      }
     break;
 
     case WAIT_FOR_CLOSE: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id){
-        d_curr_state = DISCOVER_SERVICES;
+        d_curr_state = DISCOVER_HTM;
     }
     break;
   }

@@ -42,6 +42,8 @@
 #define EXTCOMIN_PORT  13
 #define PB0_PORT        5
 #define PB0_PIN         6
+#define PB1_PORT        5
+#define PB1_PIN         7
 
 // Set GPIO drive strengths and modes of operation
 void gpioInit()
@@ -60,8 +62,13 @@ void gpioInit()
 
   GPIO_PinModeSet(PB0_PORT, PB0_PIN, gpioModeInputPullFilter, 1);
   GPIO_ExtIntConfig (PB0_PORT, PB0_PIN, PB0_PIN, true, true, true);
+
+  GPIO_PinModeSet(PB1_PORT, PB1_PIN, gpioModeInputPullFilter, 1);
+  GPIO_ExtIntConfig (PB1_PORT, PB1_PIN, PB1_PIN, true, true, true);
   NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);   //Enabling Interrupt in NVIC
+  NVIC_ClearPendingIRQ(GPIO_ODD_IRQn);
   NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+  NVIC_EnableIRQ(GPIO_ODD_IRQn);
 }
 
 

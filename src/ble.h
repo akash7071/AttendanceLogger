@@ -36,12 +36,20 @@ typedef struct {
   uint8_t       buttonStatus;
   uint8_t       queued_indications;
   uint32_t      serviceHandle;
+  uint32_t      ButtonServiceHandle;
   uint16_t      characteristicHandle;
+  uint16_t      ButtonCharacteristicHandle;
 } ble_data_struct_t;
 
 void handle_ble_event(sl_bt_msg_t *evt);
 ble_data_struct_t* ble_get_data_struct();
 void ble_send_indication(uint16_t temperature);
+
+// button state service UUID 00000001-38c8-433e-87ec-652a2d136289
+static const uint8_t PB0_Service_UUID[16] = {0x89, 0x62, 0x13, 0x2d, 0x2a, 0x65, 0xec, 0x87, 0x3e, 0x43, 0xc8, 0x38, 0x01, 0x00, 0x00, 0x00};
+
+// button STate characteristic UUID 00000002-38c8-433e-87ec-652a2d136289
+static const uint8_t PB0_Char_UUID[16] = {0x89, 0x62, 0x13, 0x2d, 0x2a, 0x65, 0xec, 0x87, 0x3e, 0x43, 0xc8, 0x38, 0x02, 0x00, 0x00, 0x00};
 
 typedef struct {
   uint16_t      charHandle;

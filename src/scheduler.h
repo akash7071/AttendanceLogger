@@ -18,13 +18,19 @@ typedef enum {            //Event Declared as 0 has the highest priority and
     event_I2C_transferDone,
     event_ButtonPressed,
     event_ButtonReleased,
+    event_PB1Pressed,
+    event_PB1Released,
 } some_type_t;
+
+
 
 void schedulerSetReadTemperature();
 void schedulerSetI2Ctransfer() ;
 void schedulerSetWaitDone();
 void schedulerSetButtonPressed();
 void schedulerSetButtonReleased();
+void schedulerSetPB1Released();
+void schedulerSetPB1Pressed();
 void Temperature_state_machine(sl_bt_msg_t *event);
 void discovery_state_machine(sl_bt_msg_t *event);
 uint32_t getNextEvent();
