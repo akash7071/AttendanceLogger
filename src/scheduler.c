@@ -44,6 +44,7 @@ typedef enum{
   DISCOVER_BUTTON_SERVICES,
   DISCOVER_BUTTON_CHAR,
   INDICATE,
+  INDICATE_BUTTON,
   CHECK,
   WAIT_FOR_CLOSE,
 }discovery_state_t;
@@ -135,6 +136,7 @@ void schedulerSetPB1Released() {
 }*/
 
 void Temperature_state_machine(sl_bt_msg_t *event){
+#if 0
   uint16_t temperature =0;
   if(SL_BT_MSG_ID(event->header) != sl_bt_evt_system_external_signal_id)
     return;
@@ -183,6 +185,7 @@ void Temperature_state_machine(sl_bt_msg_t *event){
     }
     break;
   }
+#endif
 }
 
 void discovery_state_machine(sl_bt_msg_t *event) {
@@ -235,10 +238,23 @@ void discovery_state_machine(sl_bt_msg_t *event) {
         if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
             LOG_ERROR("sl_bt_gatt_set_characteristic_notification() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
         }
+        d_curr_state = INDICATE_BUTTON;
+        displayPrintf(DISPLAY_ROW_CONNECTION, "Handling Indications");
+    }
+    else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
+         d_curr_state = DISCOVER_HTM;
+         ble_client -> connection_open = false;
+    }
+    break;
+
+    case INDICATE_BUTTON: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
+        sc = sl_bt_gatt_set_characteristic_notification(ble_client->temperatureSetHandle, ble_client->ButtonCharacteristicHandle, gatt_indication);
+        if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
+            LOG_ERROR("sl_bt_gatt_set_characteristic_notification() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+        }
         d_curr_state = CHECK;
         displayPrintf(DISPLAY_ROW_CONNECTION, "Handling Indications");
     }
-
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
          d_curr_state = DISCOVER_HTM;
          ble_client -> connection_open = false;

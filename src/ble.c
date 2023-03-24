@@ -144,6 +144,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       break;
 
     case sl_bt_evt_sm_confirm_bonding_id:
+          LOG_INFO("COnfirm Bonding ID\n\r");
           sl_bt_sm_bonding_confirm(ble_data.temperatureSetHandle, 1);
       break;
 
@@ -151,7 +152,6 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
           displayPrintf(DISPLAY_ROW_PASSKEY, "Passkey %d", evt ->data.evt_sm_passkey_display.passkey);
           displayPrintf(DISPLAY_ROW_ACTION, "Confirm with PB0");
       break;
-
     case sl_bt_evt_system_external_signal_id:
       if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
           displayPrintf(DISPLAY_ROW_9, "Button Pressed");
@@ -286,6 +286,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
     case sl_bt_evt_system_soft_timer_id:
       memset(buffer,0,BUFFER_SIZE);
       displayUpdate();
+#if 1
       if(ble_data.isBonded && ble_data.queued_indications && !ble_data.indication_in_flight) {
           if(!read_queue(&charHandle_tmp, &bufferLength_tmp, &buffer[0])) {
               ble_data.queued_indications--;
@@ -298,6 +299,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
               }
           }
       }
+#endif
       break;
 
 #else
@@ -338,7 +340,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       ble_data.temperatureSetHandle  = evt->data.evt_connection_opened.connection;
       displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
       displayPrintf(DISPLAY_ROW_BTADDR2, "%x:%x:%x:%x:%x:%x", server[0], server[1], server[2], server[3], server[4], server[5]);
-      break;s
+      break;
 
     case sl_bt_evt_connection_closed_id:
       sc = sl_bt_scanner_start(sl_bt_gap_phy_1m , sl_bt_scanner_discover_generic);    //Starts Scanning Again.
@@ -384,20 +386,20 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
               }
           }
       }
-      if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
-        displayPrintf(DISPLAY_ROW_9, "Button Pressed");
-        ble_data.buttonStatus = 0x01;
-        if(ble_data.isBonded == true) {
-
-        }
-        else {
-            sc = sl_bt_sm_passkey_confirm(ble_data.temperatureSetHandle, 1);
-            if(sc != SL_STATUS_OK) {                                                         //Sets Parameters for Connection.
-               LOG_ERROR("sl_bt_sm_passkey_confirm() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
-            }
-            LOG_INFO("Confirming Passkey\n\r");
-        }
-      }
+//      if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
+//        displayPrintf(DISPLAY_ROW_9, "Button Pressed");
+//        ble_data.buttonStatus = 0x01;
+//        if(ble_data.isBonded == true) {
+//
+//        }
+//        else {
+//            sc = sl_bt_sm_passkey_confirm(ble_data.temperatureSetHandle, 1);
+//            if(sc != SL_STATUS_OK) {                                                         //Sets Parameters for Connection.
+//               LOG_ERROR("sl_bt_sm_passkey_confirm() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+//            }
+//            LOG_INFO("Confirming Passkey\n\r");
+//        }
+//      }
       if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonReleased)) {
           displayPrintf(DISPLAY_ROW_9, "Button Released");
          // ble_data.buttonStatus = 0x01;
