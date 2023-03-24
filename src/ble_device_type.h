@@ -34,7 +34,6 @@
  */
 #define DEVICE_IS_BLE_SERVER 0
 
-
 // Students:
 // For your Bluetooth Client implementations, starting with A7,
 // set this #define to the bd_addr of the Gecko that will be your Server.

@@ -51,13 +51,9 @@ void GPIO_EVEN_IRQHandler(void) {
    if(gpioInput & 0x40) {
        if(!buttonStatus) {
            schedulerSetButtonPressed();
-           buttonStatus = true;
-           LOG_INFO("PB0 Pressed\n\r");
        }
        else {
            schedulerSetButtonReleased();
-           buttonStatus = false;
-           LOG_INFO("PB0 Released\n\r");
        }
    }
 }
@@ -69,13 +65,9 @@ void GPIO_ODD_IRQHandler(void) {
   if(gpioInput & 0x80) {
     if(!PB1_buttonStatus) {
       schedulerSetPB1Pressed();
-      PB1_buttonStatus = true;
-      LOG_INFO("PB1 Pressed\n\r");
     }
     else {
         schedulerSetPB1Released();
-        PB1_buttonStatus = false;
-        LOG_INFO("PB1 Released\n\r");
     }
   }
 
