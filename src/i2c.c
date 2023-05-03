@@ -107,8 +107,8 @@ void i2c_read(uint8_t word_address_r) {
    transferSequence.flags = I2C_FLAG_WRITE_READ;
    transferSequence.buf[0].data = &word_address_r;       // pointer to data to write
    transferSequence.buf[0].len = sizeof(word_address_r);
-   transferSequence.buf[1].data = &All_Emp_data[0];
-   transferSequence.buf[1].len = sizeof(All_Emp_data);
+   transferSequence.buf[1].data = &EEPROM_data;
+   transferSequence.buf[1].len = sizeof(EEPROM_data);
    NVIC_EnableIRQ(I2C0_IRQn);
     transferStatus = I2C_TransferInit(I2C0, &transferSequence);
     if (transferStatus < 0) {

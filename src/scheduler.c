@@ -18,7 +18,7 @@
 #include "em_letimer.h"
 #define I2C_TRANSFER_WAIT   10800
 #include "lcd.h"
-
+#include "sl_udelay.h"
 
 
 /*manager
@@ -28,12 +28,12 @@ PushButton: 5d3becb1-8661-4c95-a440-bb0b1fe1de5c
 ECEN5823 Encryption Test
 ECEN5823 Encrypted Button State: 00000002-38c8-433e-87ec-652a2d136289*/
 
-const uint8_t TEMPERATURE_SERVICE[] = {0x09, 0x18};
+const uint8_t TEMPERATURE_SERVICE[2] = {0x09, 0x18};
 const uint8_t TEMPERATURE_CHAR[2] = {0x1C, 0x2A};
 
 
 
-static int i_curr_state =0, m_curr_state =0, curr_state =0;
+static int i_curr_state =0, m_curr_state =0, curr_state =0, p_curr_state= 0;
 uint8_t current_data =0;
 uint16_t timeout =0;
 uint8_t *Employee_data;
@@ -57,6 +57,7 @@ typedef enum{
   i2c_READ_EMP,
   i2c_EMP_STORE,
   i2c_MANAGER_SEND,
+  WRITE_CHRACTERISTIC,
 }manager_states_t;
 
 
@@ -95,7 +96,7 @@ typedef enum {
 uint32_t Curr_Events =0;
 int current_state =START_Sensor;
 uint32_t myEvent =0;
-static uint8_t *current_eid;
+static uint8_t current_eid;
 //uint16_t word_address = 0x9855;
 uint8_t send_buffer[3];
 
@@ -282,23 +283,30 @@ void i2c_sequencial_test(uint32_t event)
 void i2c_store_attendance(sl_bt_msg_t *event) {
   ble_data_struct_t *ble_client= ble_get_data_struct();
   switch(i_curr_state){
-  case i2c_READ:  if(ble_client -> store_attendance  == true) {
-                        get_eid(current_eid);
-                        i2c_read(2*(*current_eid));
+  case i2c_READ:  if(ble_client -> isBonded && ble_client -> store_attendance  == true) {
+                        current_eid = get_eid();
+                        LOG_INFO("EID is %d\n\r", current_eid);
+                        i2c_read(2*(current_eid));
                         i_curr_state = i2c_WAIT;
                   }
                   break;
   case i2c_WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
+                    LOG_INFO("i2cWait state\n\r");
                     timerWaitUs_irq(10800);
                     i_curr_state = i2c_WRITE;
                   }
                   break;
+
   case i2c_WRITE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {
-                     if(get_EEPROM_data() == 1) {
-                         i2c_write(2*(*current_eid), 2);
+                     uint8_t temp_read = get_EEPROM_data();
+                     LOG_INFO("STORED ATTENDANCE FOR EID %d is %d\n\r", current_eid, temp_read);
+                     if(temp_read == 1) {
+                         i2c_write(2*(current_eid), 2);
+                         displayPrintf(DISPLAY_ROW_TEMPVALUE, "Employee - %d Clk out", current_eid);
                      }
                      else {
-                         i2c_write(2*(*current_eid), 1);
+                         i2c_write(2*(current_eid), 1);
+                         displayPrintf(DISPLAY_ROW_TEMPVALUE, "Employee - %d Clk in", current_eid);
                      }
                      ble_client -> store_attendance = false;
                      i_curr_state = i2c_READ;
@@ -312,7 +320,7 @@ void Manager_Access(sl_bt_msg_t *event) {
   ble_data_struct_t *ble_client= ble_get_data_struct();
   uint8_t sc= 0;
   switch(m_curr_state) {
-    case i2c_READ_EMP: if(ble_client ->managerLogin == true) {
+    case i2c_READ_EMP: if(ble_client -> isBonded && ble_client ->managerLogin == true && ble_client -> sent_once) {
        i2c_sequential_read(0x02,6);
        m_curr_state = i2c_EMP_STORE;
        memset(send_buffer, 0, 3);
@@ -323,21 +331,37 @@ void Manager_Access(sl_bt_msg_t *event) {
         Employee_data = get_all_data();
         send_buffer[0] = Employee_data[0];
         send_buffer[1] = Employee_data[2];
-        send_buffer[2] = Employee_data[4];
+        send_buffer[2] = Employee_data[4] =0;
         m_curr_state = i2c_MANAGER_SEND;
+        //sl_udelay_wait(1000000);
     }
     break;
     case i2c_MANAGER_SEND: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){
         if(ble_client -> indication_in_flight == false) {
-           uint8_t sent_len=0;
-          sc = sl_bt_gatt_write_characteristic_value_without_response(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 3, &send_buffer[0], &sent_len);
-          if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
-               LOG_ERROR("sl_bt_gatt_write_characteristic_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
-           }
+            uint16_t sent_len =0;
+            LOG_INFO("Emp 1: %d , Emp 2: %d, Emp 3: %d\n\r", send_buffer[0], send_buffer[1], send_buffer[2]);
+            sc = sl_bt_gatt_write_characteristic_value_without_response(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 3, &send_buffer[0], &sent_len);
+            if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
+                 LOG_ERROR("sl_bt_gatt_write_characteristic_value_without_response() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+            }
+            m_curr_state = i2c_READ_EMP;
+            ble_client -> sent_once = false;
+            //sl_udelay_wait(1200000);
         }
-        m_curr_state = i2c_READ_EMP;
     }
     break;
+    /*case WRITE_CHRACTERISTIC:if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){
+        if(ble_client -> indication_in_flight == false) {
+          uint16_t sent_len =0;
+          sc = sl_bt_gatt_write_characteristic_value(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 3, &send_buffer[0]);
+          if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
+               LOG_ERROR("sl_bt_gatt_write_characteristic_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+          }
+          m_curr_state = i2c_READ_EMP;
+          ble_client -> sent_once = false;
+        }
+    }
+    break;*/
   }
 }
 
@@ -345,10 +369,10 @@ void Manager_Access(sl_bt_msg_t *event) {
 void update_Payroll (sl_bt_msg_t *event)
 {
   ble_data_struct_t *ble_client= ble_get_data_struct();
-  switch(i_curr_state){
+  switch(p_curr_state){
    case PAYROLL_READ:  if(ble_client -> update_Payroll  == true) {
                          i2c_sequential_read(2,6);
-                         i_curr_state = PAYROLL_UPDATE;
+                         p_curr_state = PAYROLL_UPDATE;
                    }
                    break;
    case PAYROLL_UPDATE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
@@ -382,22 +406,22 @@ void update_Payroll (sl_bt_msg_t *event)
                              }
                          }
                      }
-                     i_curr_state = PAYROLL_STORE;
+                     p_curr_state = PAYROLL_STORE;
                    }
                    break;
    case PAYROLL_STORE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {
                       i2c_page_write(0x02, Employee_data, 6);
-                      i_curr_state = PAYROLL_WAIT;
+                      p_curr_state = PAYROLL_WAIT;
                    }
                    break;
    case PAYROLL_WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
                        timerWaitUs_irq(10800);
-                       i_curr_state = UPDATE_RESTART;
+                       p_curr_state = UPDATE_RESTART;
                      }
                      break;
    case UPDATE_RESTART: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {
                        ble_client -> update_Payroll  = false;
-                       i_curr_state = PAYROLL_READ;
+                       p_curr_state = PAYROLL_READ;
                     }
                     break;
   }
@@ -411,7 +435,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
   ble_data_struct_t *ble_client= ble_get_data_struct();
   switch(d_curr_state){
     case DISCOVER_HTM: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_opened_id){
-        sc = sl_bt_gatt_discover_primary_services_by_uuid(ble_client ->Connection_1_Handle, sizeof(EMPLOYEE_S), &EMPLOYEE_S[0]);  //employee UUID
+        sc = sl_bt_gatt_discover_primary_services_by_uuid(ble_client ->Connection_1_Handle, sizeof(TEMPERATURE_SERVICE), &TEMPERATURE_SERVICE[0]);  //employee UUID
         if(sc != SL_STATUS_OK){                                                        //Starts Advertising Back again
             LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
         }
@@ -420,7 +444,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
     break;
 
     case DISCOVER_HTM_CHARACTERISTICS: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_gatt_procedure_completed_id) {
-        sc = sl_bt_gatt_discover_characteristics_by_uuid(ble_client->Connection_1_Handle, ble_client->EmployeeServiceHandle, sizeof(ATTENDANCE_LOGGER_C), &ATTENDANCE_LOGGER_C[0]); //Attendance Logger Char UUID
+        sc = sl_bt_gatt_discover_characteristics_by_uuid(ble_client->Connection_1_Handle, ble_client->EmployeeServiceHandle, sizeof(TEMPERATURE_CHAR), &TEMPERATURE_CHAR[0]); //Attendance Logger Char UUID
         if(sc != SL_STATUS_OK){                                                       //Starts Advertising Back again
             LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
         }
@@ -535,7 +559,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
      }
     break;
 
-    case WAIT_FOR_CLOSE: if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id){
+    case WAIT_FOR_CLOSE: if(ble_client -> connection_open == 0){
         d_curr_state = DISCOVER_HTM;
     }
     break;

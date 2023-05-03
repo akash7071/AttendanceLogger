@@ -41,6 +41,9 @@
 #define PER_SEC_FEE                 50
 
 
+extern const uint8_t TEMPERATURE_SERVICE[2];
+extern const uint8_t TEMPERATURE_CHAR[2];
+
 uint8_t headcount = 0;
 // BLE private data
 ble_data_struct_t ble_data;
@@ -159,17 +162,17 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
           displayPrintf(DISPLAY_ROW_9, "Button Pressed");
           ble_data.buttonStatus = 0x01;
           if(ble_data.isBonded == true) {
-              sc = sl_bt_gatt_server_write_attribute_value(gattdb_employee_id_s, 0 , 1, &ble_data.buttonStatus);
+              sc = sl_bt_gatt_server_write_attribute_value(gattdb_button_state, 0 , 1, &ble_data.buttonStatus);
               if(sc != SL_STATUS_OK){
                   LOG_ERROR("sl_bt_gatt_server_write_attribute_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
               }
               if(ble_data.ok_to_send_button_indications) {
                   if(ble_data.indication_in_flight) {
-                      write_queue(gattdb_employee_id_s, 1, &ble_data.buttonStatus);
+                      write_queue(gattdb_button_state, 1, &ble_data.buttonStatus);
                       ble_data.queued_indications++;
                   }
                   else {
-                      sc = sl_bt_gatt_server_send_indication(ble_data.Connection_1_Handle, gattdb_employee_id_s, 1, &ble_data.buttonStatus);
+                      sc = sl_bt_gatt_server_send_indication(ble_data.Connection_1_Handle, gattdb_button_state, 1, &ble_data.buttonStatus);
                       if(sc != SL_STATUS_OK) {
                           LOG_ERROR("sl_bt_gatt_server_send_indication 4 () returned non-zero status=0x%04x\n\r", (unsigned int) sc);
                       }
@@ -187,17 +190,17 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
           displayPrintf(DISPLAY_ROW_9, "Button Released");
           ble_data.buttonStatus = 0x00;
           if(ble_data.isBonded == true) {
-               sc = sl_bt_gatt_server_write_attribute_value(35, 0 , 1, &ble_data.buttonStatus);
+               sc = sl_bt_gatt_server_write_attribute_value(gattdb_button_state, 0 , 1, &ble_data.buttonStatus);
                if(sc != SL_STATUS_OK){
                    LOG_ERROR("sl_bt_gatt_server_write_attribute_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
                }
                if(ble_data.ok_to_send_button_indications) {
                    if(ble_data.indication_in_flight) {
-                       write_queue(35, 1, &ble_data.buttonStatus);
+                       write_queue(gattdb_button_state, 1, &ble_data.buttonStatus);
                        ble_data.queued_indications++;
                    }
                    else {
-                       sc = sl_bt_gatt_server_send_indication(ble_data.Connection_1_Handle, 35, 1, &ble_data.buttonStatus);
+                       sc = sl_bt_gatt_server_send_indication(ble_data.Connection_1_Handle, gattdb_button_state, 1, &ble_data.buttonStatus);
                        if(sc != SL_STATUS_OK) {
                            LOG_ERROR("sl_bt_gatt_server_send_indication 3 () returned non-zero status=0x%04x\n\r", (unsigned int) sc);
                        }
@@ -260,7 +263,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
             }
         }
       }
-      if(evt->data.evt_gatt_server_characteristic_status.characteristic == gattdb_employee_id_s)
+      if(evt->data.evt_gatt_server_characteristic_status.characteristic == gattdb_button_state)
       {
         if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config) {
             if(evt->data.evt_gatt_server_characteristic_status.client_config_flags == gatt_indication) {
@@ -365,7 +368,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
     case sl_bt_evt_system_soft_timer_id:
       displayUpdate();                                                                //Updating Soft Timer
       if(ble_data.isBonded) {
-          ble_data.update_Payroll = true;
+          //ble_data.update_Payroll = true;
           /*displayPrintf(DISPLAY_ROW_NAME, "Attendance");
           displayPrintf(DISPLAY_ROW_BTADDR, "Monitoring");
           displayPrintf(DISPLAY_ROW_BTADDR2, "System");
@@ -390,6 +393,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 
     case sl_bt_evt_gatt_procedure_completed_id:
       if(evt->data.evt_gatt_procedure_completed.result == 0x110F){
+          LOG_INFO("Increasing security\n\r");
           sc = sl_bt_sm_increase_security(ble_data.Connection_1_Handle);
           if(sc != SL_STATUS_OK) {
              LOG_ERROR("sl_bt_sm_increase_security() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
@@ -398,6 +402,17 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       break;
 
     case sl_bt_evt_system_external_signal_id:
+      if(evt -> data.evt_system_external_signal.extsignals == (1 << event_PB1Pressed)) {
+          if(ble_data.isBonded) {
+
+          }
+          else {
+              sc = sl_bt_gatt_read_characteristic_value(ble_data.Connection_1_Handle, ble_data.ButtonCharacteristicHandle);
+               if(sc != SL_STATUS_OK) {                                                          //Sets Parameters for Connection.
+                  LOG_ERROR("sl_bt_gatt_read_characteristic_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
+               }
+          }
+      }
       if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
         if(ble_data.isBonded == true) {
             /*for (int i =0; i<3; i++){
@@ -435,29 +450,29 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
      break;
 
     case sl_bt_evt_gatt_service_id:                                                 //Saving the Service Handle
-      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, PB0_Service_UUID, sizeof(PB0_Service_UUID))) {
+      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, &PB0_Service_UUID[0], sizeof(PB0_Service_UUID))) {
           ble_data.ButtonServiceHandle = evt -> data.evt_gatt_service.service;
       }
-      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, EMPLOYEE_S, sizeof(EMPLOYEE_S))) {
+      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, &TEMPERATURE_SERVICE[0], sizeof(TEMPERATURE_SERVICE))) {
           ble_data.EmployeeServiceHandle = evt -> data.evt_gatt_service.service;
       }
-      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, MANAGER_S, sizeof(MANAGER_S))) {
+      if(!memcmp(evt ->data.evt_gatt_service.uuid.data, &MANAGER_S[0], sizeof(MANAGER_S))) {
           ble_data.ManagerServiceHandle = evt -> data.evt_gatt_service.service;
       }
       break;
 
     case sl_bt_evt_gatt_characteristic_id:                                          //Saving the Characteristics Handle
-      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, ATTENDANCE_LOGGER_C, sizeof(ATTENDANCE_LOGGER_C))){
+      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, &TEMPERATURE_CHAR[0], sizeof(TEMPERATURE_CHAR))){
           ble_data.EmployeeCharacteristicHandle = evt -> data.evt_gatt_characteristic.characteristic;
       }
-      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, ATTENDANCE_DATA_C, sizeof(ATTENDANCE_DATA_C))) {
+      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, &ATTENDANCE_DATA_C[0], sizeof(ATTENDANCE_DATA_C))) {
           ble_data.Manager_ATT_CharacteristicHandle = evt -> data.evt_gatt_characteristic.characteristic;
       }
-      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, WAGES_CHARACTERISTIC, sizeof(WAGES_CHARACTERISTIC))) {
+      if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, &WAGES_CHARACTERISTIC[0], sizeof(WAGES_CHARACTERISTIC))) {
           ble_data.Manager_Wages_CharacteristicHandle = evt -> data.evt_gatt_characteristic.characteristic;
       }
       if(!memcmp(evt ->data.evt_gatt_characteristic.uuid.data, PB0_Char_UUID, sizeof(PB0_Char_UUID))) {
-          ble_data.Manager_Wages_CharacteristicHandle = evt -> data.evt_gatt_characteristic.characteristic;
+          ble_data.ButtonCharacteristicHandle = evt -> data.evt_gatt_characteristic.characteristic;
       }
       break;
 
@@ -478,7 +493,8 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 
     case sl_bt_evt_gatt_characteristic_value_id:
       if(evt->data.evt_gatt_characteristic_value.characteristic == ble_data.ButtonCharacteristicHandle) {
-          sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
+          /*sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
+
           if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
               LOG_ERROR("sl_bt_gatt_send_characteristic_confirmation() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
           }
@@ -491,24 +507,25 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
               if(!ble_data.indication_in_flight) {
                   sl_bt_gatt_write_characteristic_value_without_response(ble_data.Connection_1_Handle, ble_data.Manager_Wages_CharacteristicHandle, 3, &send_payroll[0], &send_len);
               }
-          }
+          }*/
       }
-      LOG_INFO("Coming\n\r");
       if(evt->data.evt_gatt_characteristic_value.characteristic == ble_data.EmployeeCharacteristicHandle) {
           sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
+          LOG_INFO("Sending Confirmation\n\r");
           if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
               LOG_ERROR("sl_bt_gatt_send_characteristic_confirmation() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
           }
           tmp_eid = (evt->data.evt_gatt_characteristic_value.value.data[0]);         //Calculating Employee information
           //tmp_eid_status  = &(evt->data.evt_gatt_characteristic_value.value.data[1]);
-          displayPrintf(DISPLAY_ROW_TEMPVALUE, "Employee - %d %s", tmp_eid,employee_report_table[tmp_eid-1].attendance_status);
-          LOG_INFO("tmp_eid is %d\n", tmp_eid);
           if(tmp_eid == 4) {
               if(!ble_data.managerLogin){
                   ble_data.managerLogin = true;
+                  ble_data.sent_once = true;
+                  displayPrintf(DISPLAY_ROW_TEMPVALUE, "Manager Access");
               }
               else {
                   ble_data.managerLogin = false;
+                  displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
               }
           }
           else if(tmp_eid < 4) {
@@ -521,8 +538,8 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 } // handle_ble_event()
 
 
-void get_eid(uint8_t *eid) {
-   eid = &tmp_eid;
+uint8_t get_eid() {
+   return tmp_eid;
 }
 
 void ble_send_indication(uint16_t temperature)

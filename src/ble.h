@@ -47,6 +47,7 @@ typedef struct {
   bool          managerLogin;
   bool          update_Payroll;
   bool          send_payroll;
+  bool          sent_once;
 } ble_data_struct_t;
 
 void handle_ble_event(sl_bt_msg_t *evt);
@@ -98,6 +99,6 @@ static employee_report_t employee_report_table[] = {
 
 bool write_queue (uint16_t charHandle, size_t bufferLength, uint8_t *buffer);
 bool read_queue (uint16_t *charHandle, size_t *bufferLength, uint8_t *buffer);
-void get_eid(uint8_t *eid);
+uint8_t get_eid();
 
 #endif /* SRC_BLE_H_ */

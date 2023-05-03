@@ -53,7 +53,7 @@
 #define EM2 2
 #define EM3 3
 
-#define LOWEST_ENERGY_MODE  EM2
+#define LOWEST_ENERGY_MODE  EM0
 #define LETIMER_ON_TIME_MS  175
 #define LETIMER_PERIOD_MS   3000
 

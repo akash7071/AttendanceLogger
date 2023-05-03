@@ -238,10 +238,10 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
    Temperature_state_machine(evt);    // put this code in scheduler.c/.h
 #else
    //discovery_state_machine(evt);
-   discovery_state_machine(evt);
-   /*  i2c_store_attendance(evt);
+     discovery_state_machine(evt);
+     i2c_store_attendance(evt);
      Manager_Access(evt);
-     update_Payroll(evt);*/
+    // update_Payroll(evt);
 #endif
 } // sl_bt_on_event()
 
