@@ -21,7 +21,13 @@ extern const sli_bt_gattdb_t gattdb;
 #define gattdb_measurement_interval           29
 #define gattdb_valid_range                    30
 #define gattdb_button_state                   34
-#define gattdb_ota_control                    38
+#define gattdb_employee_id_s                  38
+#define gattdb_employee_id_server             40
+#define gattdb_attendance_data_c              43
+#define gattdb_employee_data_client           45
+#define gattdb_wages                          47
+#define gattdb_wages_client                   49
+#define gattdb_ota_control                    52
 
 
 #endif // __GATT_DB_H
