@@ -159,13 +159,14 @@ SL_WEAK void app_init(void)
 #elif (LOWEST_ENERGY_MODE == EM2)
    sl_power_manager_add_em_requirement(SL_POWER_MANAGER_EM2);
 #endif
-   gpioInit();                            //Initializing GPIO LED0
    init_Clock();                          //Initializing Clock LXFO and ULFCRO
-#if DEVICE_IS_BLE_SERVER
+   gpioInit();                            //Initializing GPIO LED0
+   I2C_Sensor_Init();
+  // LETIMER0_init();
    LETIMER0_init();                       //Initializing Timer with COMP0 and COMP1
    NVIC_ClearPendingIRQ(LETIMER0_IRQn);   //Enabling Interrupt in NVIC
    NVIC_EnableIRQ(LETIMER0_IRQn);
-#endif
+   for(int i =0; i<80000; i++);
 } // app_init()
 
 
@@ -236,7 +237,11 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
 #if DEVICE_IS_BLE_SERVER
    Temperature_state_machine(evt);    // put this code in scheduler.c/.h
 #else
+   //discovery_state_machine(evt);
    discovery_state_machine(evt);
+   /*  i2c_store_attendance(evt);
+     Manager_Access(evt);
+     update_Payroll(evt);*/
 #endif
 } // sl_bt_on_event()
 

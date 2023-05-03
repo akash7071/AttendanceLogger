@@ -18,5 +18,11 @@ void I2C_read_temperature();
 uint16_t calculate_temperature();
 void sensor_enable();
 void sensor_write_temperature();
+void i2c_write(uint8_t w_address, uint8_t w_data);
+void i2c_read(uint8_t word_address_r);
+uint8_t get_EEPROM_data();
+void i2c_sequential_read(uint8_t start_address, uint8_t len);
+uint8_t* get_all_data();
+void i2c_page_write(uint8_t start_address, uint8_t *data, uint8_t len);
 
 #endif /* SRC_I2C_H_ */

@@ -13,19 +13,26 @@
 #include "gpio.h"
 #include "core_cm4.h"
 #include "i2c.h"
+#include <string.h>
 
 #define SI7021_DEVICE_ADDR  0x40
+#define EEPROM_SLAVE_ADDR   0xA0
 #define I2C0_SCL_PIN        10
 #define I2C0_SDA_PIN        11
 #define POWER_ON_SEQ_US     80000
 #define INCLUDE_LOG_DEBUG   1
 #include "log.h"
 
+
+uint8_t temp_buffer[7];
 I2C_TransferReturn_TypeDef transferStatus;
 I2C_TransferSeq_TypeDef transferSequence;
 uint8_t cmd_data = 0;
 uint16_t read_data =0;
 uint16_t curr_temp =0;
+uint8_t EEPROM_data = 0;
+uint16_t word_address = 0;
+static uint8_t All_Emp_data[6];
 
 void I2C_Sensor_Init() {
   I2CSPM_Init_TypeDef I2C_Config = {
@@ -55,6 +62,85 @@ void I2C_write_Temperature() {
       LOG_ERROR("I2CSPM_Transfer: I2C bus write failed\n\r");
   }
   I2C_Transfer(I2C0);
+}
+
+void i2c_write(uint8_t w_address, uint8_t w_data) {
+  word_address = (((w_data << 8) & 0xFF00) | w_address);
+  transferSequence.addr = EEPROM_SLAVE_ADDR;
+  transferSequence.flags = I2C_FLAG_WRITE;
+  transferSequence.buf[0].data = &word_address;       // pointer to data to write
+  transferSequence.buf[0].len = sizeof(word_address);
+/*  transferSequence.buf[1].data = &i2c_data;
+  transferSequence.buf[1].len = sizeof(i2c_data);*/
+  NVIC_EnableIRQ(I2C0_IRQn);
+  transferStatus = I2C_TransferInit(I2C0, &transferSequence);
+  if (transferStatus < 0) {
+      LOG_ERROR("I2CSPM_Transfer: I2C bus write failed\n\r");
+  }
+  I2C_Transfer(I2C0);
+}
+
+void i2c_page_write(uint8_t start_address, uint8_t *data, uint8_t len)
+{
+  if(data == NULL)
+    return;
+  if(len > 6)
+    return;
+  temp_buffer[0] = start_address;
+  memcpy(&temp_buffer[1],data,len);
+  transferSequence.addr = EEPROM_SLAVE_ADDR;
+  transferSequence.flags = I2C_FLAG_WRITE;
+  transferSequence.buf[0].data = (uint8_t *)&temp_buffer[0];       // pointer to data to write
+  transferSequence.buf[0].len = len+1;
+/*  transferSequence.buf[1].data = &i2c_data;
+  transferSequence.buf[1].len = sizeof(i2c_data);*/
+  NVIC_EnableIRQ(I2C0_IRQn);
+  transferStatus = I2C_TransferInit(I2C0, &transferSequence);
+  if (transferStatus < 0) {
+      LOG_ERROR("I2CSPM_Transfer: I2C bus write failed\n\r");
+  }
+  I2C_Transfer(I2C0);
+}
+
+void i2c_read(uint8_t word_address_r) {
+   transferSequence.addr = EEPROM_SLAVE_ADDR;
+   transferSequence.flags = I2C_FLAG_WRITE_READ;
+   transferSequence.buf[0].data = &word_address_r;       // pointer to data to write
+   transferSequence.buf[0].len = sizeof(word_address_r);
+   transferSequence.buf[1].data = &All_Emp_data[0];
+   transferSequence.buf[1].len = sizeof(All_Emp_data);
+   NVIC_EnableIRQ(I2C0_IRQn);
+    transferStatus = I2C_TransferInit(I2C0, &transferSequence);
+    if (transferStatus < 0) {
+        LOG_ERROR("I2CSPM_Transfer: I2C bus Read failed\n\r");
+    }
+    I2C_Transfer(I2C0);
+    for(int i=0; i<1000;i++);
+    //LOG_INFO("Getting data = %d\n\r", EEPROM_data);
+    //return EEPROM_data;
+}
+
+uint8_t get_EEPROM_data() {
+  return EEPROM_data;
+}
+
+uint8_t* get_all_data() {
+  return &All_Emp_data[0];
+}
+void i2c_sequential_read(uint8_t start_address, uint8_t len) {
+  transferSequence.addr = EEPROM_SLAVE_ADDR;
+  transferSequence.flags = I2C_FLAG_WRITE_READ;
+  transferSequence.buf[0].data = &start_address;       // pointer to data to write
+  transferSequence.buf[0].len = sizeof(start_address);
+  transferSequence.buf[1].data = (uint8_t *)&All_Emp_data;
+  transferSequence.buf[1].len = len;
+  NVIC_EnableIRQ(I2C0_IRQn);
+  transferStatus = I2C_TransferInit(I2C0, &transferSequence);
+  if (transferStatus < 0) {
+      LOG_ERROR("I2CSPM_Transfer: I2C bus Read failed\n\r");
+  }
+  I2C_Transfer(I2C0);
+  for(int i=0; i<1000;i++);
 }
 
 void I2C_read_temperature(){

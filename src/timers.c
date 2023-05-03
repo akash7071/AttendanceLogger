@@ -40,7 +40,7 @@ void LETIMER0_init() {
     LETIMER_Init(LETIMER0, &timer);
     LETIMER_CompareSet(LETIMER0, 0, COMP0_CNT);  // COMP0
     LETIMER_IntClear (LETIMER0, 0xFFFFFFFF);     // Clear all IRQ flags in the LETIMER0 IF status register
-    LETIMER_IntEnable (LETIMER0, LETIMER_IEN_UF);//  Enabling UF Interrupt
+    //LETIMER_IntEnable (LETIMER0, LETIMER_IEN_UF);//  Enabling UF Interrupt
     LETIMER_Enable(LETIMER0, true);              //  Turning on LETIMER0
 }
 

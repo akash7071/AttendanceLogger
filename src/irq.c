@@ -35,12 +35,14 @@ void LETIMER0_IRQHandler (void) {
 
 void I2C0_IRQHandler(void){
   I2C_TransferReturn_TypeDef transferStatus;
+  static int count =0;
   transferStatus = I2C_Transfer(I2C0);
   if(transferStatus == i2cTransferDone){         //If i2c transfer is done, returns 1 and sets event in the scheduler
       schedulerSetI2Ctransfer();
   }
   if(transferStatus < 0){
-      LOG_ERROR("%d", transferStatus);
+      count++;
+      LOG_ERROR("%d. Count = %d\n\r", transferStatus, count);
   }
 }
 

@@ -34,5 +34,12 @@ void schedulerSetPB1Pressed();
 void Temperature_state_machine(sl_bt_msg_t *event);
 void discovery_state_machine(sl_bt_msg_t *event);
 uint32_t getNextEvent();
+void i2c_state_machine(uint32_t event);
+void i2c_sequencial_test(uint32_t event);
+void i2c_store_attendance(sl_bt_msg_t *event);
+void Manager_Access(sl_bt_msg_t *event);
+void update_Payroll (sl_bt_msg_t *event);
+
+
 
 #endif /* SRC_SCHEDULER_H_ */
