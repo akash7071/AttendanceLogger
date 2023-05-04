@@ -87,14 +87,14 @@ typedef enum {
 typedef struct {
   uint8_t employee_id;
   uint8_t status;
-  char  attendance_status[11];
+  char  attendance_status[4];
   uint16_t Payroll;
 }employee_report_t;
 
 static employee_report_t employee_report_table[] = {
-    {1, Absent, "Absent", 0},
-    {2, Absent, "Absent", 0},
-    {3, Absent, "Absent", 0},
+    {1, Absent, "Abs", 0},
+    {2, Absent, "Abs", 0},
+    {3, Absent, "Abs", 0},
 };
 
 bool write_queue (uint16_t charHandle, size_t bufferLength, uint8_t *buffer);

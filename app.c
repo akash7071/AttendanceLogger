@@ -221,7 +221,6 @@ SL_WEAK void app_process_action(void)
  *****************************************************************************/
 void sl_bt_on_event(sl_bt_msg_t *evt)
 {
-
   // Just a trick to hide a compiler warning about unused input parameter evt.
   //(void) evt;
 
@@ -241,7 +240,7 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
      discovery_state_machine(evt);
      i2c_store_attendance(evt);
      Manager_Access(evt);
-    // update_Payroll(evt);
+     update_Payroll(evt);
 #endif
 } // sl_bt_on_event()
 

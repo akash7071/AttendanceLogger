@@ -39,6 +39,7 @@ uint16_t timeout =0;
 uint8_t *Employee_data;
 uint8_t temp_test[6] = {96,97,98,90,99,6};
 
+
 typedef enum {
   START_Sensor,
   WRITE,
@@ -302,11 +303,17 @@ void i2c_store_attendance(sl_bt_msg_t *event) {
                      LOG_INFO("STORED ATTENDANCE FOR EID %d is %d\n\r", current_eid, temp_read);
                      if(temp_read == 1) {
                          i2c_write(2*(current_eid), 2);
-                         displayPrintf(DISPLAY_ROW_TEMPVALUE, "Employee - %d Clk out", current_eid);
+                         employee_report_table[current_eid].status = 2;
+                         memset(&employee_report_table[current_eid].attendance_status[0], 0, 4);
+                         strcpy(employee_report_table[current_eid].attendance_status, "Out");
+                         displayPrintf(4, "Employee - %d Clk out", current_eid);
                      }
                      else {
                          i2c_write(2*(current_eid), 1);
-                         displayPrintf(DISPLAY_ROW_TEMPVALUE, "Employee - %d Clk in", current_eid);
+                         employee_report_table[current_eid].status = 1;
+                         memset(&employee_report_table[current_eid].attendance_status[0], 0, 4);
+                         strcpy(employee_report_table[current_eid].attendance_status, "In ");
+                         displayPrintf(4, "Employee - %d Clk in", current_eid);
                      }
                      ble_client -> store_attendance = false;
                      i_curr_state = i2c_READ;
@@ -321,56 +328,46 @@ void Manager_Access(sl_bt_msg_t *event) {
   uint8_t sc= 0;
   switch(m_curr_state) {
     case i2c_READ_EMP: if(ble_client -> isBonded && ble_client ->managerLogin == true && ble_client -> sent_once) {
-       i2c_sequential_read(0x02,6);
+       //i2c_sequential_read(0x02,6);
        m_curr_state = i2c_EMP_STORE;
        memset(send_buffer, 0, 3);
     }
     break;
-    case i2c_EMP_STORE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
+    case i2c_EMP_STORE: //if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
         timerWaitUs_irq(10800);
-        Employee_data = get_all_data();
-        send_buffer[0] = Employee_data[0];
-        send_buffer[1] = Employee_data[2];
-        send_buffer[2] = Employee_data[4] =0;
+        //Employee_data = get_all_data();
+        send_buffer[0] = employee_report_table[0].status;
+        send_buffer[1] = employee_report_table[1].status;
+        send_buffer[2] = employee_report_table[2].status;
+        send_buffer[3] = employee_report_table[0].Payroll;
+        send_buffer[4] = employee_report_table[1].Payroll;
+        send_buffer[5] = employee_report_table[2].Payroll;
         m_curr_state = i2c_MANAGER_SEND;
-        //sl_udelay_wait(1000000);
-    }
+    //}
     break;
     case i2c_MANAGER_SEND: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){
         if(ble_client -> indication_in_flight == false) {
-            uint16_t sent_len =0;
             LOG_INFO("Emp 1: %d , Emp 2: %d, Emp 3: %d\n\r", send_buffer[0], send_buffer[1], send_buffer[2]);
-            sc = sl_bt_gatt_write_characteristic_value_without_response(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 3, &send_buffer[0], &sent_len);
+            sc = sl_bt_gatt_write_characteristic_value(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 6, &send_buffer[0]);
             if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
                  LOG_ERROR("sl_bt_gatt_write_characteristic_value_without_response() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
             }
             m_curr_state = i2c_READ_EMP;
             ble_client -> sent_once = false;
-            //sl_udelay_wait(1200000);
         }
     }
     break;
-    /*case WRITE_CHRACTERISTIC:if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)){
-        if(ble_client -> indication_in_flight == false) {
-          uint16_t sent_len =0;
-          sc = sl_bt_gatt_write_characteristic_value(ble_client -> Connection_1_Handle, ble_client -> Manager_ATT_CharacteristicHandle, 3, &send_buffer[0]);
-          if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
-               LOG_ERROR("sl_bt_gatt_write_characteristic_value() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
-          }
-          m_curr_state = i2c_READ_EMP;
-          ble_client -> sent_once = false;
-        }
-    }
-    break;*/
   }
 }
 
 
 void update_Payroll (sl_bt_msg_t *event)
 {
+  uint8_t headcount =0;
   ble_data_struct_t *ble_client= ble_get_data_struct();
   switch(p_curr_state){
    case PAYROLL_READ:  if(ble_client -> update_Payroll  == true) {
+                        // LOG_INFO("Updating Payroll\n\r");
                          i2c_sequential_read(2,6);
                          p_curr_state = PAYROLL_UPDATE;
                    }
@@ -378,49 +375,61 @@ void update_Payroll (sl_bt_msg_t *event)
    case PAYROLL_UPDATE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
                      timerWaitUs_irq(10800);
                      Employee_data = get_all_data();
-                     for(int i = 1; i<7; i=i+2) {                       //Payroll Update
+                     for(int i = 0; i<6; i=i+2) {                       //Payroll Update
                          if(Employee_data[i]==1){
+                             headcount++;
                              Employee_data[i+1]++;
-                             employee_report_table[(i/2)].Payroll++;
+                             employee_report_table[(i/2)].Payroll = Employee_data[i+1];
+                         }
+                         else {
+                             employee_report_table[i/2].Payroll = Employee_data[i+1];
                          }
                      }
-                     for(int i =0; i<6; i=i+2) {                        //Attendance update
+                     for(int i = 0; i<6; i=i+2) {                        //Attendance update
                          if(Employee_data[i] != employee_report_table[i/2].status) {
                              if(Employee_data[i] == 1){
                                  employee_report_table[i/2].status = 1;
-                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 11);
-                                 strcpy(employee_report_table[i/2].attendance_status, "Clocked in");
-                                 //employee_report_table[i/2].attendance_status[0] = "Clocked in";
+                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 4);
+                                 strcpy(employee_report_table[i/2].attendance_status, "In ");
+                                 //LOG_INFO("Updated Emp %d status to %s\n\r", employee_report_table[i/2].employee_id, employee_report_table[i/2].attendance_status);
                              }
                              else if(Employee_data[i] == 2){
                                  employee_report_table[i/2].status = 2;
-                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 11);
-                                 strcpy(employee_report_table[i/2].attendance_status, "Clocked out");
-                                 //employee_report_table[i/2].attendance_status[0] = "Clocked out";
+                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 4);
+                                 strcpy(employee_report_table[i/2].attendance_status, "Out");
+                                 //LOG_INFO("Updated Emp %d status to %s\n\r", employee_report_table[i/2].employee_id, employee_report_table[i/2].attendance_status);
                              }
                              else {
                                  employee_report_table[i/2].status = 0;
-                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 11);
-                                 strcpy(employee_report_table[i/2].attendance_status, "Absent");
-                                 //employee_report_table[i/2].attendance_status[0] = "Absent";
+                                 memset(&employee_report_table[i/2].attendance_status[0], 0, 4);
+                                 strcpy(employee_report_table[i/2].attendance_status, "Abs");
+                                 //LOG_INFO("Updated Emp %d status to %s\n\r", employee_report_table[i/2].employee_id, employee_report_table[i/2].attendance_status);
                              }
                          }
                      }
+                     displayPrintf(5, "Headcount = %d", headcount);
+                     displayPrintf(DISPLAY_ROW_8, " %d      %s     $%d", employee_report_table[0].employee_id, employee_report_table[0].attendance_status, employee_report_table[0].Payroll);
+                     displayPrintf(9, " %d      %s     $%d", employee_report_table[1].employee_id, employee_report_table[1].attendance_status, employee_report_table[1].Payroll);
+                     displayPrintf(10, " %d      %s     $%d", employee_report_table[2].employee_id, employee_report_table[2].attendance_status, employee_report_table[2].Payroll);
                      p_curr_state = PAYROLL_STORE;
                    }
                    break;
+
    case PAYROLL_STORE: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {
                       i2c_page_write(0x02, Employee_data, 6);
                       p_curr_state = PAYROLL_WAIT;
                    }
                    break;
+
    case PAYROLL_WAIT: if(event -> data.evt_system_external_signal.extsignals == (1<<event_I2C_transferDone)) {
                        timerWaitUs_irq(10800);
                        p_curr_state = UPDATE_RESTART;
                      }
                      break;
+
    case UPDATE_RESTART: if(event -> data.evt_system_external_signal.extsignals == (1<<event_Timer_COMP1)) {
                        ble_client -> update_Payroll  = false;
+                       //LOG_INFO("Updated Payroll\n\r");
                        p_curr_state = PAYROLL_READ;
                     }
                     break;
@@ -528,7 +537,7 @@ void discovery_state_machine(sl_bt_msg_t *event) {
         }
         d_curr_state = INDICATE_BUTTON;
         ble_client -> ok_to_send_htm_indications = true;
-        displayPrintf(DISPLAY_ROW_CONNECTION, "Handling Indications");
+        displayPrintf(3, "Handling Indications");
     }
     else if(SL_BT_MSG_ID(event->header) == sl_bt_evt_connection_closed_id) {
          d_curr_state = DISCOVER_HTM;

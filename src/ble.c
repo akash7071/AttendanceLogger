@@ -38,7 +38,7 @@
 #define CLIENT_MAX_CE_LENGTH        5
 #define QUEUE_DEPTH                (16)
 #define BUFFER_SIZE                 5
-#define PER_SEC_FEE                 50
+#define PER_SEC_FEE                 5
 
 
 extern const uint8_t TEMPERATURE_SERVICE[2];
@@ -337,7 +337,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       }
       displayInit();
       displayPrintf(DISPLAY_ROW_NAME, BLE_DEVICE_TYPE_STRING);
-      displayPrintf(DISPLAY_ROW_CONNECTION, "Discovering");
+      displayPrintf(DISPLAY_ROW_CLIENTADDR, "Discovering");
       displayPrintf(DISPLAY_ROW_BTADDR, "%x:%x:%x:%x:%x:%x", ble_data.myAddress.addr[0], ble_data.myAddress.addr[1], ble_data.myAddress.addr[2], ble_data.myAddress.addr[3], ble_data.myAddress.addr[4], ble_data.myAddress.addr[5]);
       displayPrintf(DISPLAY_ROW_ASSIGNMENT, "Project");
       break;
@@ -345,13 +345,13 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
     case sl_bt_evt_connection_opened_id:
       ble_data.connection_open = true;
       ble_data.Connection_1_Handle  = evt->data.evt_connection_opened.connection;
-      displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
-      displayPrintf(DISPLAY_ROW_BTADDR2, "%x:%x:%x:%x:%x:%x", server[0], server[1], server[2], server[3], server[4], server[5]);
+      displayPrintf(DISPLAY_ROW_CLIENTADDR, "Connected");
+      //displayPrintf(DISPLAY_ROW_BTADDR2, "%x:%x:%x:%x:%x:%x", server[0], server[1], server[2], server[3], server[4], server[5]);
       break;
 
     case sl_bt_evt_connection_closed_id:
       sc = sl_bt_scanner_start(sl_bt_gap_phy_1m , sl_bt_scanner_discover_generic);    //Starts Scanning Again.
-      displayPrintf(DISPLAY_ROW_CONNECTION, "Discovering");
+      displayPrintf(DISPLAY_ROW_CLIENTADDR, "Discovering");
       if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
           LOG_ERROR("sl_bt_scanner_start() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
       }
@@ -368,16 +368,12 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
     case sl_bt_evt_system_soft_timer_id:
       displayUpdate();                                                                //Updating Soft Timer
       if(ble_data.isBonded) {
-          //ble_data.update_Payroll = true;
-          /*displayPrintf(DISPLAY_ROW_NAME, "Attendance");
-          displayPrintf(DISPLAY_ROW_BTADDR, "Monitoring");
-          displayPrintf(DISPLAY_ROW_BTADDR2, "System");
-          displayPrintf(DISPLAY_ROW_CONNECTION, "Headcount = %d", headcount);
+          ble_data.update_Payroll = true;
           displayPrintf(DISPLAY_ROW_ACTION, "EMPID ATTENDANCE PAY");
           displayPrintf(DISPLAY_ROW_TEMPVALUE, "----- ---------- ---");
-          displayPrintf(DISPLAY_ROW_8, " %d    %s $%d", employee_report_table[0].employee_id, employee_report_table[0].attendance_status, employee_report_table[0].Payroll*PER_SEC_FEE);
-          displayPrintf(DISPLAY_ROW_9, " %d   %s $%d", employee_report_table[1].employee_id, employee_report_table[1].attendance_status, employee_report_table[1].Payroll*PER_SEC_FEE);
-          displayPrintf(DISPLAY_ROW_10, " %d      %s    $%d", employee_report_table[2].employee_id, employee_report_table[2].attendance_status, employee_report_table[2].Payroll*PER_SEC_FEE);*/
+         /* displayPrintf(DISPLAY_ROW_8, " %d      %s    $%d", employee_report_table[0].employee_id, employee_report_table[0].attendance_status, employee_report_table[0].Payroll*PER_SEC_FEE);
+          displayPrintf(9, " %d      %s    $%d", employee_report_table[1].employee_id, employee_report_table[1].attendance_status, employee_report_table[1].Payroll*PER_SEC_FEE);
+          displayPrintf(10, " %d      %s    $%d", employee_report_table[2].employee_id, employee_report_table[2].attendance_status, employee_report_table[2].Payroll*PER_SEC_FEE);*/
       }
       //i2c_sequential_read()
       //if(any of 0,2,4 is 1, then add 1 to index 1,3,5 to their corresponding index)
@@ -393,7 +389,6 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 
     case sl_bt_evt_gatt_procedure_completed_id:
       if(evt->data.evt_gatt_procedure_completed.result == 0x110F){
-          LOG_INFO("Increasing security\n\r");
           sc = sl_bt_sm_increase_security(ble_data.Connection_1_Handle);
           if(sc != SL_STATUS_OK) {
              LOG_ERROR("sl_bt_sm_increase_security() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
@@ -415,6 +410,8 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
       }
       if(evt -> data.evt_system_external_signal.extsignals == (1 << event_ButtonPressed)) {
         if(ble_data.isBonded == true) {
+            uint8_t temp_b[6] = {0,0,0,0,0,0};
+            i2c_page_write(2,&temp_b,6);
             /*for (int i =0; i<3; i++){
                 if(employee_report_table[i].status == 1) {
                     memset(&employee_report_table[i].attendance_status[0], 0, 11);
@@ -481,7 +478,7 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
        ble_data.isBonded = true;
        displayPrintf(DISPLAY_ROW_PASSKEY, " ");
        displayPrintf(DISPLAY_ROW_ACTION, " ");
-       displayPrintf(DISPLAY_ROW_CONNECTION, "Bonded");
+       displayPrintf(DISPLAY_ROW_CLIENTADDR, "Bonded");
        break;
 
      case sl_bt_evt_sm_bonding_failed_id:
@@ -493,21 +490,25 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
 
     case sl_bt_evt_gatt_characteristic_value_id:
       if(evt->data.evt_gatt_characteristic_value.characteristic == ble_data.ButtonCharacteristicHandle) {
-          /*sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
-
+          LOG_INFO("Button Indication received %d\n\r", ble_data.ButtonCharacteristicHandle);
+          sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
           if(sc != SL_STATUS_OK){                                                         //Sets Parameters for Connection.
               LOG_ERROR("sl_bt_gatt_send_characteristic_confirmation() returned non-zero status=0x%04x\n\r", (unsigned int)sc);
           }
-          if(evt->data.evt_gatt_characteristic_value.value.data[0] == 1 && ble_data.managerLogin) {
-              uint8_t send_payroll[3];
-              uint16_t send_len;
-              for(int i =0; i < 3; i++) {
-                   send_payroll[i] = employee_report_table[i].Payroll;
-              }
-              if(!ble_data.indication_in_flight) {
-                  sl_bt_gatt_write_characteristic_value_without_response(ble_data.Connection_1_Handle, ble_data.Manager_Wages_CharacteristicHandle, 3, &send_payroll[0], &send_len);
-              }
-          }*/
+          if(evt-> data.evt_gatt_characteristic_value.value.data[0] && ble_data.managerLogin) {
+               uint8_t send_payroll[3];
+               uint16_t send_len;
+               for(int i =0; i < 3; i++) {
+                    send_payroll[i] = employee_report_table[i].Payroll;
+               }
+               sl_udelay_wait(5000000);
+               if(!ble_data.indication_in_flight) {
+                   sl_bt_gatt_write_characteristic_value_without_response(ble_data.Connection_1_Handle, ble_data.Manager_Wages_CharacteristicHandle, 3, &send_payroll[0], &send_len);
+               }
+               else {
+                   LOG_INFO("Indication in FLight \n\r");
+               }
+           }
       }
       if(evt->data.evt_gatt_characteristic_value.characteristic == ble_data.EmployeeCharacteristicHandle) {
           sc = sl_bt_gatt_send_characteristic_confirmation(ble_data.Connection_1_Handle);
@@ -521,15 +522,18 @@ void handle_ble_event(sl_bt_msg_t *evt) {           //Ble Event Responder
               if(!ble_data.managerLogin){
                   ble_data.managerLogin = true;
                   ble_data.sent_once = true;
-                  displayPrintf(DISPLAY_ROW_TEMPVALUE, "Manager Access");
+                  displayPrintf(DISPLAY_ROW_CONNECTION, "Manager Access");
               }
               else {
                   ble_data.managerLogin = false;
-                  displayPrintf(DISPLAY_ROW_TEMPVALUE, "");
+                  displayPrintf(DISPLAY_ROW_CONNECTION, "");
               }
           }
           else if(tmp_eid < 4) {
               ble_data.store_attendance = true;
+          }
+          else if(tmp_eid == 5){
+
           }
       }
       break;
