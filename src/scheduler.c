@@ -16,10 +16,51 @@
 #include "src/log.h"
 #include "ble.h"
 #include "em_letimer.h"
+#include "ble_device_type.h"
+#include "gatt_db.h"
 #define I2C_TRANSFER_WAIT   10800
 #include "lcd.h"
 #include "sl_udelay.h"
+#include "uart.h"
+#define SECOND 1000*1000
+#define WAGES 5
 
+// DOS: If the caller needs these, shouldn't they be defined in the .h file ???? !!!!!
+#define CAPTURE_FLAG        1
+#define IDENTIFY_FLAG        2
+
+#define PB0PRESS 8
+#define PB0RELEASE 16
+#define PB1PRESS 32
+#define PB1RELEASE 128
+#define TOGGLEINDICATION 64
+
+//#define I2C_COMPLETE_EVENT 4
+
+ble_data_struct_t *ble_data2;
+
+enum myStates_t
+{
+  IDLE,
+  WAIT_FOR_FINGERPRINT,
+  IDENTIFY_FINGERPRINT,
+  LOG_ATTENDANCE,
+  PAYROLL_DISPLAY
+
+};
+
+uint16_t nextEvent=1;
+uint8_t i=0;
+bool readOp=1;
+bool writeOp=0;
+
+
+uint16_t eventLog=0;
+
+
+
+extern uint8_t receiveAck;
+extern uint8_t fingerID;
 
 /*manager
 Attendance Data: 587ddc07-4953-4b87-8978-584702ca95eb
@@ -30,7 +71,6 @@ ECEN5823 Encrypted Button State: 00000002-38c8-433e-87ec-652a2d136289*/
 
 const uint8_t TEMPERATURE_SERVICE[2] = {0x09, 0x18};
 const uint8_t TEMPERATURE_CHAR[2] = {0x1C, 0x2A};
-
 
 
 static int i_curr_state =0, m_curr_state =0, curr_state =0, p_curr_state= 0;
@@ -437,7 +477,7 @@ void update_Payroll (sl_bt_msg_t *event)
 }
 
 
-
+#if (DEVICE_IS_BLE_SERVER == 0)
 void discovery_state_machine(sl_bt_msg_t *event) {
   static int d_curr_state;
   uint8_t sc= 0;
@@ -574,4 +614,305 @@ void discovery_state_machine(sl_bt_msg_t *event) {
     break;
   }
 }
+#endif
 
+#if DEVICE_IS_BLE_SERVER
+/**************************************************************************//**
+ * Function to set the event for read temperature every 3s
+ *****************************************************************************/
+
+
+/**************************************************************************//**
+ * Function to set the event for button press
+ *****************************************************************************/
+void SetPB0Press()
+{CORE_DECLARE_IRQ_STATE;
+CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB0PRESS);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+/**************************************************************************//**
+ * Function to set the event for button release
+ *****************************************************************************/
+void SetPB0Release()
+{
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB0RELEASE);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+/**************************************************************************//**
+ * Function to set the event for button press
+ *****************************************************************************/
+void SetPB1Press()
+{CORE_DECLARE_IRQ_STATE;
+CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB1PRESS);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+/**************************************************************************//**
+ * Function to set the event for button release
+ *****************************************************************************/
+void SetPB1Release()
+{
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB1RELEASE);
+  CORE_EXIT_CRITICAL();
+}
+
+
+/**************************************************************************//**
+ * Function to set the event for indication toggle
+ *****************************************************************************/
+void setEventToggleIndication()
+{
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(TOGGLEINDICATION);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+
+void setCaptureEvent()
+{
+
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(CAPTURE_FLAG);
+  CORE_EXIT_CRITICAL();
+
+ }
+
+
+
+void setIdentifyEvent()
+{
+
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(IDENTIFY_FLAG);
+  CORE_EXIT_CRITICAL();
+
+ }
+
+
+
+
+void sendPayrollIndication()
+{
+  //gpioLed1SetOff();
+  uint8_t payRollID=0x05;
+  sl_status_t sc = sl_bt_gatt_server_write_attribute_value(
+      gattdb_wages, // handle from gatt_db.h
+    0,                              // offset
+    sizeof(payRollID), // length
+    &payRollID);    // pointer to buffer where data is
+
+  if (sc != SL_STATUS_OK)
+           LOG_ERROR("GATT DB WRITE ERROR");
+
+  if(ble_data2->connection_open==1
+      && ble_data2->indication_in_flight==0 && ble_data2->ok_to_send_htm_indications)
+    {
+      sc = sl_bt_gatt_server_send_indication(ble_data2->connectionHandle,
+                                                   gattdb_wages,
+                                                   sizeof(payRollID),
+                                                   &payRollID);
+      ble_data2->indication_in_flight=1;
+      if (sc != SL_STATUS_OK)
+        gpioLed0SetOff();
+
+    }
+}
+
+
+void sendManagerIndication()
+{
+  uint8_t managerID=0x04;
+  sl_status_t sc = sl_bt_gatt_server_write_attribute_value(
+      gattdb_employee_id_s, // handle from gatt_db.h
+    0,                              // offset
+    sizeof(managerID), // length
+    &managerID);    // pointer to buffer where data is
+
+  if (sc != SL_STATUS_OK)
+           LOG_ERROR("GATT DB WRITE ERROR");
+
+  if(ble_data2->connection_open==1
+      && ble_data2->indication_in_flight==0 && ble_data2->ok_to_send_htm_indications)
+    {
+      sc = sl_bt_gatt_server_send_indication(ble_data2->connectionHandle,
+                                             gattdb_employee_id_s,
+                                                   sizeof(managerID),
+                                                   &managerID);
+      ble_data2->indication_in_flight=1;
+      if (sc != SL_STATUS_OK)
+               LOG_ERROR("GATT INDICATION WRITE ERROR");
+
+    }
+}
+
+void sendEmployeeIndication(uint8_t fingerID)
+{
+
+    sl_status_t sc = sl_bt_gatt_server_write_attribute_value(
+    gattdb_employee_id_s, // handle from gatt_db.h
+    0,                              // offset
+    sizeof(fingerID), // length
+    &fingerID);    // pointer to buffer where data is
+
+  if (sc != SL_STATUS_OK)
+           LOG_ERROR("GATT DB WRITE ERROR");
+
+  if(ble_data2->connection_open==1
+      && ble_data2->indication_in_flight==0 && ble_data2->ok_to_send_htm_indications)
+    {
+      sc = sl_bt_gatt_server_send_indication(ble_data2->connectionHandle,
+                                             gattdb_employee_id_s,
+                                                   sizeof(fingerID),
+                                                   &fingerID);
+      ble_data2->indication_in_flight=1;
+      if (sc != SL_STATUS_OK)
+               LOG_ERROR("GATT INDICATION WRITE ERROR");
+
+    }
+}
+
+
+void stateMachine(sl_bt_msg_t *evt)
+{
+
+  ble_data2=getBleDataPtr();
+  if(ble_data2->connection_open==1 && ble_data2->isBonded && ble_data2->ok_to_send_htm_indications)
+    {
+
+      enum myStates_t currentState=IDLE;
+      static enum myStates_t nextState = IDLE;
+      uint32_t event=evt->data.evt_system_external_signal.extsignals;
+      currentState = nextState;
+
+       switch(currentState)
+            {
+
+            case IDLE:
+                  capturePrint();                 //start capturing finger prints
+                  displayPrintf(3, "Ready",0);
+                  nextState=WAIT_FOR_FINGERPRINT;
+
+              break;
+
+
+            case WAIT_FOR_FINGERPRINT:
+
+              if(event == 1)
+                {
+
+                  identifyFinger();
+                  nextState=IDENTIFY_FINGERPRINT;
+
+                }
+              break;
+
+
+            case IDENTIFY_FINGERPRINT:
+
+              if( (event == 2) && (fingerID==0x00))
+                {
+
+                  sendManagerIndication();
+                  //log out
+                  if(ble_data2->managerLoggedIn)
+                    {
+                      displayPrintf(3, "Ready",0);
+                      displayPrintf(4, "", 0);
+                      displayPrintf(5, " ", 0);
+                      displayPrintf(6, "    ",0);
+                      displayPrintf(7, "",0);
+                      displayPrintf(DISPLAY_ROW_8, "", 0);
+                      displayPrintf(DISPLAY_ROW_9, " ", 0);
+                      displayPrintf(DISPLAY_ROW_10, "    ", 0);
+
+                      ble_data2->managerLoggedIn=0;
+                      nextState=IDLE;
+                      ble_data2 -> payroll =0;
+                    }
+
+                  //log in
+                  else
+                    {
+                      displayPrintf(3, "Manager Access",0);// change row
+                      displayPrintf(4, "Getting Data...",0);
+
+                      ble_data2->managerLoggedIn=1;
+                      nextState=PAYROLL_DISPLAY;
+                    }
+
+
+
+                }
+              //labor access
+              else if( (event == 2) && (fingerID<=0x03))
+                {
+                  if(ble_data2->managerLoggedIn)
+                    {
+                      displayPrintf(4, "Not allowed",0);
+                      break;
+                    }
+
+                  nextState=LOG_ATTENDANCE;
+                  sendEmployeeIndication(fingerID);
+
+                }
+              else if((event == 2) && (fingerID>0x03))
+                {
+                  displayPrintf(3, "Unrecognized",0);// change row
+                  displayPrintf(4, "Try Again",0);
+                  nextState=IDLE;
+                }
+
+              break;
+
+
+            case PAYROLL_DISPLAY:
+              if((SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_server_attribute_value_id))
+                {
+                  displayPrintf(4, "",0);
+                  nextState=IDLE;
+                }
+              break;
+
+
+            case LOG_ATTENDANCE:
+
+                {
+                  displayPrintf(4, "",0);//print current state
+                  displayPrintf(3, "Employee %d Logged",fingerID);
+                  sl_udelay_wait(SECOND);
+                  sl_udelay_wait(SECOND);
+                  sl_udelay_wait(SECOND);
+                  sl_udelay_wait(SECOND);
+                  sl_udelay_wait(SECOND);
+                  displayPrintf(3, "",0);
+                  sl_udelay_wait(1000);
+                  displayPrintf(3, "Ready",0);
+                  nextState=IDLE;
+                }
+              break;
+
+            } // switch
+    }//if
+
+}
+#endif

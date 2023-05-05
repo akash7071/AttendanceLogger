@@ -13,7 +13,6 @@
 #include <stdbool.h>
 #include "sl_bt_api.h"
 #include <math.h>
-
 #define UINT8_TO_BITSTREAM(p, n) { *(p)++ = (uint8_t)(n); }
 #define UINT32_TO_BITSTREAM(p, n) { *(p)++ = (uint8_t)(n); *(p)++ = (uint8_t)((n) >> 8); \
     *(p)++ = (uint8_t)((n) >> 16); *(p)++ = (uint8_t)((n) >> 24); }
@@ -22,36 +21,47 @@
 // Modern C (circa 2021 does it this way)
 // typedef ble_data_struct_t is referred to as an anonymous struct definition
 typedef struct {
-  // values that are common to servers and clients
-  bd_addr       myAddress;
-  uint8_t       myAddressType;
-  // The advertising set handle allocated from Bluetooth stack.
-  uint8_t       advertisingSetHandle;
-  uint8_t       Connection_1_Handle;
- // uint8_t       Connection_2_Handle;
-  bool          connection_open;            // true when in an open connection
-  bool          ok_to_send_htm_indications; // true when client enabled indications
-  bool          indication_in_flight;
-  bool          isBonded;
-  bool          ok_to_send_button_indications;
-  uint8_t       buttonStatus;
-  uint8_t       queued_indications;
-  uint32_t      EmployeeServiceHandle;
-  uint32_t      ButtonServiceHandle;
-  uint32_t      ManagerServiceHandle;
-  uint16_t      EmployeeCharacteristicHandle;
-  uint16_t      ButtonCharacteristicHandle;
-  uint16_t      Manager_ATT_CharacteristicHandle;
-  uint16_t      Manager_Wages_CharacteristicHandle;
-  bool          store_attendance;
-  bool          managerLogin;
-  bool          update_Payroll;
-  bool          send_payroll;
-  bool          sent_once;
+
+   uint8_t advertisingSetHandle;
+   uint8_t connectionHandle;
+   bool connection_open; // true when in an open connection
+   bool payroll;
+    uint8_t headcount;
+
+    uint32_t thermometer_service_handle;
+    uint16_t thermometer_characteristic_handle;
+
+    uint32_t buttonState_service_handle;
+    uint16_t buttonState_characteristic_handle;
+    bool managerLoggedIn;
+   bd_addr       myAddress;
+    uint8_t       myAddressType;
+    // The advertising set handle allocated from Bluetooth stack.
+    uint8_t       Connection_1_Handle;
+   // uint8_t       Connection_2_Handle;
+    bool          ok_to_send_htm_indications; // true when client enabled indications
+    bool          indication_in_flight;
+    bool          isBonded;
+    bool          ok_to_send_button_indications;
+    uint8_t       buttonStatus;
+    uint8_t       queued_indications;
+    uint32_t      EmployeeServiceHandle;
+    uint32_t      ButtonServiceHandle;
+    uint32_t      ManagerServiceHandle;
+    uint16_t      EmployeeCharacteristicHandle;
+    uint16_t      ButtonCharacteristicHandle;
+    uint16_t      Manager_ATT_CharacteristicHandle;
+    uint16_t      Manager_Wages_CharacteristicHandle;
+    bool          store_attendance;
+    bool          managerLogin;
+    bool          update_Payroll;
+    bool          send_payroll;
+    bool          sent_once;
 } ble_data_struct_t;
 
 void handle_ble_event(sl_bt_msg_t *evt);
 ble_data_struct_t* ble_get_data_struct();
+ble_data_struct_t* getBleDataPtr();
 void ble_send_indication(uint16_t temperature);
 
 // button state service UUID 00000001-38c8-433e-87ec-652a2d136289
@@ -91,11 +101,7 @@ typedef struct {
   uint16_t Payroll;
 }employee_report_t;
 
-static employee_report_t employee_report_table[] = {
-    {1, Absent, "Abs", 0},
-    {2, Absent, "Abs", 0},
-    {3, Absent, "Abs", 0},
-};
+static employee_report_t employee_report_table[3];
 
 bool write_queue (uint16_t charHandle, size_t bufferLength, uint8_t *buffer);
 bool read_queue (uint16_t *charHandle, size_t *bufferLength, uint8_t *buffer);
